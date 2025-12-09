@@ -1,0 +1,19 @@
+[project]
+name = "uniboard"
+version = "0.1.0"
+description = "Smart Platform for Student Boarding Place Discovery"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+	"fastapi>=0.95,<1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.dependency-groups.dev]
+dependencies = [
+	"uvicorn[standard]>=0.20.0",
+	"pytest>=7.0",
+]
