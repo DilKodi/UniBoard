@@ -1,17 +1,17 @@
+version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
+  db:
+    image: postgres:16-alpine
     container_name: uniboard_db
     environment:
       POSTGRES_USER: uniboard_user
-      POSTGRES_PASSWORD: uniboard_pass_2025
+      POSTGRES_PASSWORD: uniboard_password
       POSTGRES_DB: uniboard_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
 
 volumes:
   postgres_data:
