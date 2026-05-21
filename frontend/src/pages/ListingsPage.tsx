@@ -225,7 +225,7 @@ const ListingsPage = () => {
                 <div
                   key={listing.id}
                   className="bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition cursor-pointer"
-                  onClick={() => navigate(`/listing/${listing.id}`)}
+                  onClick={() => navigate(`/boarding/${listing.id}`)}
                 >
                   {/* Image Container */}
                   <div className="relative">
@@ -235,7 +235,7 @@ const ListingsPage = () => {
                       className="w-full h-48 object-cover"
                     />
                     <div className="absolute top-3 left-3 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                      Rs. {listing.price.toLocaleString()}/month
+                      LKR {listing.price.toLocaleString()}/month
                     </div>
                     {listing.verified && (
                       <div className="absolute top-3 right-3 bg-green-500 text-white px-2 py-1 rounded text-xs font-semibold">

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { useToast } from "../components/ToastProvider";
 
 interface Room {
   id: string;
@@ -54,6 +55,9 @@ export default function BoardingDetails() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [showVisitModal, setShowVisitModal] = useState(false);
+  const [visitDate, setVisitDate] = useState("");
+  const { addToast } = useToast();
 
   // Get boarding data from navigation state
   const boardingData = location.state?.boarding as BoardingPlace;
@@ -180,23 +184,35 @@ export default function BoardingDetails() {
 
   const handleRequestVisit = () => {
     if (!selectedRoomId) {
-      alert("Please select an available room first!");
+      addToast("Please select an available room first!", "warning");
+      return;
+    }
+    setShowVisitModal(true);
+  };
+
+  const handleConfirmVisit = () => {
+    if (!visitDate) {
+      addToast("Please choose a date for your visit.", "warning");
       return;
     }
     const room = boardingPlace.rooms?.find((r) => r.id === selectedRoomId);
-    alert(
-      `Visit request sent for Room ${room?.roomNumber}! The owner will contact you soon.`,
+    addToast(
+      `Visit request sent for Room ${room?.roomNumber} on ${visitDate}! The owner will contact you soon.`,
+      "success",
     );
+    setShowVisitModal(false);
+    setVisitDate("");
   };
 
   const handleBookNow = () => {
     if (!selectedRoomId) {
-      alert("Please select an available room first!");
+      addToast("Please select an available room first!", "warning");
       return;
     }
     const room = boardingPlace.rooms?.find((r) => r.id === selectedRoomId);
-    alert(
+    addToast(
       `Booking request sent for Room ${room?.roomNumber}! Please wait for owner confirmation.`,
+      "success",
     );
   };
 
@@ -515,6 +531,66 @@ export default function BoardingDetails() {
                 <MessageSquare className="w-5 h-5" />
                 Send Message
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visit Date Modal */}
+      {showVisitModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  Select visit date
+                </h2>
+                <p className="text-sm text-gray-600">
+                  Choose your preferred date before sending the request.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowVisitModal(false);
+                  setVisitDate("");
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Visit Date
+                </label>
+                <input
+                  type="date"
+                  value={visitDate}
+                  onChange={(e) => setVisitDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  min={new Date().toISOString().split("T")[0]}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setShowVisitModal(false);
+                    setVisitDate("");
+                  }}
+                  className="flex-1 py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmVisit}
+                  className="flex-1 py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-semibold"
+                >
+                  Request Visit
+                </button>
+              </div>
             </div>
           </div>
         </div>

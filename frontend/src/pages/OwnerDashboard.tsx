@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import {
@@ -7,8 +8,10 @@ import {
   Home,
   MessageSquare,
   Plus,
-  MoreVertical,
+  Pencil,
+  X,
 } from "lucide-react";
+import { useToast } from "../components/ToastProvider";
 
 interface Room {
   id: string;
@@ -102,9 +105,26 @@ const mockVisitRequests: VisitRequest[] = [
 ];
 
 export default function OwnerDashboard() {
+  const navigate = useNavigate();
+  const { addToast } = useToast();
   const [rooms, setRooms] = useState<Room[]>(mockRooms);
   const [visitRequests, setVisitRequests] =
     useState<VisitRequest[]>(mockVisitRequests);
+  const [showAddRoomModal, setShowAddRoomModal] = useState(false);
+  const [showEditRoomModal, setShowEditRoomModal] = useState(false);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [newRoomForm, setNewRoomForm] = useState({
+    name: "",
+    type: "Single",
+    price: "",
+    description: "",
+  });
+  const [editRoomForm, setEditRoomForm] = useState({
+    name: "",
+    type: "Single",
+    price: "",
+    description: "",
+  });
 
   const totalViews = rooms.reduce((sum, room) => sum + room.views, 0);
   const activeBookings = rooms.filter(
@@ -143,17 +163,85 @@ export default function OwnerDashboard() {
     );
   };
 
+  const handleAddRoom = () => {
+    if (!newRoomForm.name || !newRoomForm.price) {
+      addToast("Please fill in all required fields", "warning");
+      return;
+    }
+
+    const newRoom: Room = {
+      id: (Math.max(...rooms.map((r) => parseInt(r.id))) + 1).toString(),
+      name: newRoomForm.name,
+      type: newRoomForm.type,
+      price: parseInt(newRoomForm.price),
+      views: 0,
+      status: "Available",
+    };
+
+    setRooms([...rooms, newRoom]);
+    setNewRoomForm({ name: "", type: "Single", price: "", description: "" });
+    setShowAddRoomModal(false);
+    addToast("Room added successfully!", "success");
+  };
+
+  const openEditModal = (room: Room) => {
+    setSelectedRoomId(room.id);
+    setEditRoomForm({
+      name: room.name,
+      type: room.type,
+      price: room.price.toString(),
+      description: "",
+    });
+    setShowEditRoomModal(true);
+  };
+
+  const handleEditRoom = () => {
+    if (!editRoomForm.name || !editRoomForm.price) {
+      addToast("Please fill in all required fields", "warning");
+      return;
+    }
+
+    setRooms(
+      rooms.map((room) =>
+        room.id === selectedRoomId
+          ? {
+              ...room,
+              name: editRoomForm.name,
+              type: editRoomForm.type,
+              price: parseInt(editRoomForm.price),
+            }
+          : room,
+      ),
+    );
+
+    setEditRoomForm({ name: "", type: "Single", price: "", description: "" });
+    setSelectedRoomId(null);
+    setShowEditRoomModal(false);
+    addToast("Room updated successfully!", "success");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Owner Dashboard</h1>
-          <p className="text-gray-600 mt-2">
-            Manage your boarding rooms and track performance
-          </p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Owner Dashboard
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Manage your boarding rooms and track performance
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("/list-property")}
+            className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium flex items-center gap-2 whitespace-nowrap"
+          >
+            <Plus className="w-5 h-5" />
+            List New Property
+          </button>
         </div>
 
         {/* Performance Stats */}
@@ -206,8 +294,13 @@ export default function OwnerDashboard() {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">My Rooms</h2>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Boarding Rooms
+                </h2>
+                <button
+                  onClick={() => setShowAddRoomModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm"
+                >
                   <Plus className="w-4 h-4" />
                   Add Room
                 </button>
@@ -242,7 +335,7 @@ export default function OwnerDashboard() {
                     </div>
 
                     <div className="text-gray-900 font-medium">
-                      Rs. {room.price.toLocaleString()}
+                      LKR {room.price.toLocaleString()}
                     </div>
 
                     <div className="text-gray-600">{room.views}</div>
@@ -268,8 +361,11 @@ export default function OwnerDashboard() {
                     </div>
 
                     <div>
-                      <button className="p-2 hover:bg-gray-100 rounded-lg transition">
-                        <MoreVertical className="w-5 h-5 text-gray-600" />
+                      <button
+                        onClick={() => openEditModal(room)}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition"
+                      >
+                        <Pencil className="w-4 h-4 text-gray-600" />
                       </button>
                     </div>
                   </div>
@@ -356,6 +452,233 @@ export default function OwnerDashboard() {
       </div>
 
       <Footer />
+
+      {/* Add Room Modal */}
+      {showAddRoomModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Add New Room</h2>
+              <button
+                onClick={() => setShowAddRoomModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Room Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Room Name/Number *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Room 301"
+                  value={newRoomForm.name}
+                  onChange={(e) =>
+                    setNewRoomForm({ ...newRoomForm, name: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Room Type */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Room Type *
+                </label>
+                <select
+                  value={newRoomForm.type}
+                  onChange={(e) =>
+                    setNewRoomForm({ ...newRoomForm, type: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="Single">Single Room</option>
+                  <option value="Shared">Shared Room</option>
+                  <option value="Studio">Studio</option>
+                  <option value="Double">Double Room</option>
+                </select>
+              </div>
+
+              {/* Price */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Monthly Price (LKR) *
+                </label>
+                <input
+                  type="number"
+                  placeholder="e.g., 15000"
+                  value={newRoomForm.price}
+                  onChange={(e) =>
+                    setNewRoomForm({ ...newRoomForm, price: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  placeholder="Add details about the room..."
+                  value={newRoomForm.description}
+                  onChange={(e) =>
+                    setNewRoomForm({
+                      ...newRoomForm,
+                      description: e.target.value,
+                    })
+                  }
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowAddRoomModal(false)}
+                  className="flex-1 py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddRoom}
+                  className="flex-1 py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Room
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Room Modal */}
+      {showEditRoomModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-8 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Edit Room</h3>
+              <button
+                onClick={() => {
+                  setShowEditRoomModal(false);
+                  setSelectedRoomId(null);
+                  setEditRoomForm({
+                    name: "",
+                    type: "Single",
+                    price: "",
+                    description: "",
+                  });
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Room Name */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Room Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., Room 101"
+                value={editRoomForm.name}
+                onChange={(e) =>
+                  setEditRoomForm({ ...editRoomForm, name: e.target.value })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Room Type */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Room Type
+              </label>
+              <select
+                value={editRoomForm.type}
+                onChange={(e) =>
+                  setEditRoomForm({ ...editRoomForm, type: e.target.value })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="Single">Single</option>
+                <option value="Shared">Shared</option>
+                <option value="Studio">Studio</option>
+                <option value="Double">Double</option>
+              </select>
+            </div>
+
+            {/* Monthly Price */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Monthly Price (LKR) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                placeholder="e.g., 15000"
+                value={editRoomForm.price}
+                onChange={(e) =>
+                  setEditRoomForm({ ...editRoomForm, price: e.target.value })
+                }
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Description */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                placeholder="Add details about the room..."
+                value={editRoomForm.description}
+                onChange={(e) =>
+                  setEditRoomForm({
+                    ...editRoomForm,
+                    description: e.target.value,
+                  })
+                }
+                rows={3}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowEditRoomModal(false);
+                  setSelectedRoomId(null);
+                  setEditRoomForm({
+                    name: "",
+                    type: "Single",
+                    price: "",
+                    description: "",
+                  });
+                }}
+                className="flex-1 py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditRoom}
+                className="flex-1 py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

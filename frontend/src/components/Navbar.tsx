@@ -1,7 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { User, LogOut, Settings, ChevronDown } from "lucide-react";
+import {
+  User,
+  LogOut,
+  Settings,
+  ChevronDown,
+  GraduationCap,
+  LayoutDashboard,
+} from "lucide-react";
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -30,7 +37,22 @@ export default function Navbar() {
   };
 
   const handleViewProfile = () => {
-    navigate("/student-profile");
+    if (user?.role === "owner") {
+      navigate("/owner-profile");
+    } else {
+      navigate("/student-profile");
+    }
+    setShowDropdown(false);
+  };
+
+  const handleDashboard = () => {
+    if (user?.role === "owner") {
+      navigate("/owner-dashboard");
+    } else if (user?.role === "student") {
+      navigate("/student-dashboard");
+    } else {
+      navigate("/dashboard");
+    }
     setShowDropdown(false);
   };
 
@@ -38,7 +60,8 @@ export default function Navbar() {
     <nav className="bg-white shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="w-7 h-7 text-blue-700" />
             <button
               onClick={() => navigate("/")}
               className="text-2xl font-bold text-blue-700 hover:text-blue-800 transition"
@@ -107,6 +130,14 @@ export default function Navbar() {
                         {user?.role || "User"}
                       </p>
                     </div>
+
+                    <button
+                      onClick={handleDashboard}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <LayoutDashboard className="w-4 h-4" />
+                      Dashboard
+                    </button>
 
                     <button
                       onClick={handleViewProfile}

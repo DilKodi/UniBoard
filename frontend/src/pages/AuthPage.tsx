@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { loginUser, signupUser } from "../services/api";
@@ -10,6 +10,17 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { universities } from "../data/universities";
+
+type AuthError = {
+  response?: {
+    data?: {
+      detail?: string | { msg?: string }[];
+      message?: string | { msg?: string }[];
+    };
+  };
+  message?: string;
+};
 
 interface FormData {
   email: string;
@@ -25,13 +36,17 @@ export default function AuthPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [isLogin, setIsLogin] = useState(true);
+  const authState = (state ?? {}) as {
+    role?: "student" | "owner";
+    mode?: "login" | "signup";
+  };
+  const [isLogin, setIsLogin] = useState(authState.mode !== "signup");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   // Default to student if no role selected
-  const role = state?.role || "student";
+  const role = authState.role || "student";
   const {
     register,
     handleSubmit,
@@ -41,6 +56,15 @@ export default function AuthPage() {
   } = useForm<FormData>({
     mode: "onBlur",
   });
+
+  useEffect(() => {
+    if (authState.mode === "signup") {
+      setIsLogin(false);
+      setError("");
+      setSuccess("");
+      reset();
+    }
+  }, [authState.mode, reset]);
 
   const validatePasswords = (value: string | undefined) => {
     const password = getValues("password");
@@ -119,11 +143,12 @@ export default function AuthPage() {
           }, 2000);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const authError = err as AuthError;
       const errorMessage =
-        err.response?.data?.detail ||
-        err.response?.data?.message ||
-        err.message ||
+        authError.response?.data?.detail ||
+        authError.response?.data?.message ||
+        authError.message ||
         "Something went wrong";
       setError(
         Array.isArray(errorMessage)
@@ -180,7 +205,10 @@ export default function AuthPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="full_name"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Full Name
                 </label>
                 <input
@@ -194,6 +222,8 @@ export default function AuthPage() {
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
                     errors.full_name ? "border-red-500" : ""
                   }`}
+                  id="full_name"
+                  autoComplete="name"
                   placeholder="John Doe"
                 />
                 {errors.full_name && (
@@ -206,7 +236,10 @@ export default function AuthPage() {
 
             {!isLogin && role === "student" && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="university"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   University
                 </label>
                 <select
@@ -216,36 +249,15 @@ export default function AuthPage() {
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
                     errors.university ? "border-red-500" : ""
                   }`}
+                  id="university"
                   defaultValue=""
                 >
                   <option value="">Select your university</option>
-                  <option value="University of Moratuwa">
-                    University of Moratuwa
-                  </option>
-                  <option value="University of Colombo">
-                    University of Colombo
-                  </option>
-                  <option value="University of Peradeniya">
-                    University of Peradeniya
-                  </option>
-                  <option value="University of Sri Jayewardenepura">
-                    University of Sri Jayewardenepura
-                  </option>
-                  <option value="University of Kelaniya">
-                    University of Kelaniya
-                  </option>
-                  <option value="University of Ruhuna">
-                    University of Ruhuna
-                  </option>
-                  <option value="University of Jaffna">
-                    University of Jaffna
-                  </option>
-                  <option value="Open University of Sri Lanka">
-                    Open University of Sri Lanka
-                  </option>
-                  <option value="Sabaragamuwa University">
-                    Sabaragamuwa University
-                  </option>
+                  {universities.map((university) => (
+                    <option key={university.name} value={university.name}>
+                      {university.name} - {university.location}
+                    </option>
+                  ))}
                 </select>
                 {errors.university && (
                   <p className="text-red-500 text-xs mt-1">
@@ -256,7 +268,10 @@ export default function AuthPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Email Address
               </label>
               <input
@@ -265,6 +280,8 @@ export default function AuthPage() {
                   validate: validateEmail,
                 })}
                 type="email"
+                id="email"
+                autoComplete="email"
                 className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
                   errors.email ? "border-red-500" : ""
                 }`}
@@ -278,7 +295,10 @@ export default function AuthPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Password
               </label>
               <input
@@ -287,6 +307,8 @@ export default function AuthPage() {
                   validate: isLogin ? undefined : validatePassword,
                 })}
                 type="password"
+                id="password"
+                autoComplete={isLogin ? "current-password" : "new-password"}
                 className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
                   errors.password ? "border-red-500" : ""
                 }`}
@@ -301,7 +323,10 @@ export default function AuthPage() {
 
             {!isLogin && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label
+                  htmlFor="confirmPassword"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
                   Confirm Password
                 </label>
                 <input
@@ -310,6 +335,8 @@ export default function AuthPage() {
                     validate: validatePasswords,
                   })}
                   type="password"
+                  id="confirmPassword"
+                  autoComplete="new-password"
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
                     errors.confirmPassword ? "border-red-500" : ""
                   }`}
@@ -327,7 +354,10 @@ export default function AuthPage() {
             {!isLogin && role === "owner" && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="nic_number"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     NIC Number
                   </label>
                   <input
@@ -341,6 +371,8 @@ export default function AuthPage() {
                     className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
                       errors.nic_number ? "border-red-500" : ""
                     }`}
+                    id="nic_number"
+                    autoComplete="off"
                     placeholder="123456789V"
                   />
                   {errors.nic_number && (
@@ -351,7 +383,10 @@ export default function AuthPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label
+                    htmlFor="contact_number"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
                     Contact Number
                   </label>
                   <input
@@ -365,6 +400,8 @@ export default function AuthPage() {
                     className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-primary outline-none ${
                       errors.contact_number ? "border-red-500" : ""
                     }`}
+                    id="contact_number"
+                    autoComplete="tel"
                     placeholder="0771234567"
                   />
                   {errors.contact_number && (

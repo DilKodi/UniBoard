@@ -2,9 +2,28 @@ import { Check, Shield, Users, Filter } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
+import { useAuth } from "../contexts/AuthContext";
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, user, loading } = useAuth();
+
+  const handleListYourPropertyClick = () => {
+    if (loading) return;
+
+    if (!isAuthenticated) {
+      navigate("/login", { state: { role: "owner", mode: "signup" } });
+      return;
+    }
+
+    if (user?.role === "owner") {
+      navigate("/list-property");
+      return;
+    }
+
+    navigate("/");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -41,7 +60,7 @@ const LandingPage = () => {
           <div className="bg-white p-8 rounded-2xl shadow-lg">
             <div className="space-y-6">
               <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 h-8 w-8 bg-green-500 rounded flex items-center justify-center">
+                <div className="flex-shrink-0 h-8 w-8 bg-blue-500 rounded flex items-center justify-center">
                   <Check className="text-white" size={20} />
                 </div>
                 <div>
@@ -55,7 +74,7 @@ const LandingPage = () => {
               </div>
 
               <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 h-8 w-8 bg-green-500 rounded flex items-center justify-center">
+                <div className="flex-shrink-0 h-8 w-8 bg-blue-500 rounded flex items-center justify-center">
                   <Check className="text-white" size={20} />
                 </div>
                 <div>
@@ -69,7 +88,7 @@ const LandingPage = () => {
               </div>
 
               <div className="flex items-start space-x-4">
-                <div className="flex-shrink-0 h-8 w-8 bg-green-500 rounded flex items-center justify-center">
+                <div className="flex-shrink-0 h-8 w-8 bg-blue-500 rounded flex items-center justify-center">
                   <Check className="text-white" size={20} />
                 </div>
                 <div>
@@ -143,7 +162,7 @@ const LandingPage = () => {
       <section className="bg-blue-700 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl font-bold text-white mb-4">
-            Ready to Find Your Home?
+            Ready to Find Your Home Away From Home?
           </h2>
           <p className="text-blue-100 mb-8">
             Join thousands of students using to secure safe and affordable
@@ -159,7 +178,7 @@ const LandingPage = () => {
               Sign Up as Student
             </button>
             <button
-              onClick={() => navigate("/get-started")}
+              onClick={handleListYourPropertyClick}
               className="px-8 py-3 border-2 border-white text-white rounded-lg hover:bg-blue-800 transition font-medium"
             >
               List Your Property

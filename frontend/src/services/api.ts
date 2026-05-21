@@ -32,7 +32,7 @@ api.interceptors.response.use(
 
 // Authentication endpoints
 export const loginUser = async (email: string, password: string) => {
-  const formData = new FormData();
+  const formData = new URLSearchParams();
   formData.append('username', email);
   formData.append('password', password);
   

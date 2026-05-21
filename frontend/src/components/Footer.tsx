@@ -1,4 +1,26 @@
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+
 const Footer = () => {
+  const navigate = useNavigate();
+  const { isAuthenticated, user, loading } = useAuth();
+
+  const handleListYourPropertyClick = () => {
+    if (loading) return;
+
+    if (!isAuthenticated) {
+      navigate("/login", { state: { role: "owner", mode: "signup" } });
+      return;
+    }
+
+    if (user?.role === "owner") {
+      navigate("/list-property");
+      return;
+    }
+
+    navigate("/");
+  };
+
   return (
     <footer className="bg-gray-50 border-t border-gray-200 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -38,9 +60,12 @@ const Footer = () => {
             <h4 className="font-semibold text-gray-900 mb-4">For Owners</h4>
             <ul className="space-y-2 text-sm text-gray-600">
               <li>
-                <a href="#" className="hover:text-blue-700">
+                <button
+                  onClick={handleListYourPropertyClick}
+                  className="hover:text-blue-700"
+                >
                   List Your Property
-                </a>
+                </button>
               </li>
               <li>
                 <a href="#" className="hover:text-blue-700">
