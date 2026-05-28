@@ -1,7 +1,8 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, DateTime
 from sqlalchemy.orm import relationship
 from .database import Base
 import enum
+from datetime import datetime
 
 class UserRole(str, enum.Enum):
     STUDENT = "student"
@@ -43,3 +44,29 @@ class Owner(Base):
     contact_number = Column(String)
     
     user = relationship("User", back_populates="owner_profile")
+    boarding_places = relationship("BoardingPlace", back_populates="owner")
+
+
+class ListingStatus(str, enum.Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class BoardingPlace(Base):
+    __tablename__ = "boarding_places"
+
+    id = Column(Integer, primary_key=True, index=True)
+    owner_id = Column(Integer, ForeignKey("owners.id"), nullable=False)
+    property_name = Column(String, nullable=False)
+    location = Column(String, nullable=False)
+    address = Column(String, nullable=False)
+    nearest_university = Column(String, nullable=False)
+    number_of_floors = Column(Integer, nullable=False)
+    number_of_rooms = Column(Integer, nullable=False)
+    verification_document_name = Column(String, nullable=True)
+    rejection_reason = Column(String, nullable=True)
+    status = Column(Enum(ListingStatus), default=ListingStatus.PENDING, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    owner = relationship("Owner", back_populates="boarding_places")

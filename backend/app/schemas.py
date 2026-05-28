@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from .models import UserRole
+from datetime import datetime
 
 # Shared properties
 class UserBase(BaseModel):
@@ -30,7 +31,41 @@ class UserResponse(UserBase):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    role: Optional[UserRole] = None
 
 class TokenData(BaseModel):
     email: Optional[str] = None
     role: Optional[str] = None
+
+
+class BoardingPlaceCreate(BaseModel):
+    property_name: str
+    location: str
+    address: str
+    nearest_university: str
+    number_of_floors: int
+    number_of_rooms: int
+    verification_document_name: Optional[str] = None
+
+
+class BoardingPlaceResponse(BaseModel):
+    id: int
+    owner_id: int
+    owner_full_name: Optional[str] = None
+    property_name: str
+    location: str
+    address: str
+    nearest_university: str
+    number_of_floors: int
+    number_of_rooms: int
+    verification_document_name: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RejectListingRequest(BaseModel):
+    rejection_reason: Optional[str] = None
