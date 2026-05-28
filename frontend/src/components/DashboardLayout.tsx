@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Loader2, LogOut } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -7,6 +8,13 @@ import OwnerDashboard from "../pages/OwnerDashboard";
 export default function DashboardLayout() {
   const navigate = useNavigate();
   const { user, loading, logout } = useAuth();
+  const adminAppUrl = import.meta.env.VITE_ADMIN_APP_URL || "http://localhost:5174";
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      window.location.replace(adminAppUrl);
+    }
+  }, [adminAppUrl, user?.role]);
 
   const handleLogout = () => {
     logout();
@@ -24,6 +32,16 @@ export default function DashboardLayout() {
   if (!user) {
     navigate("/login");
     return null;
+  }
+
+  if (user.role === "admin") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="rounded-2xl border border-gray-200 bg-white px-6 py-4 text-sm text-gray-600 shadow-sm">
+          Redirecting to the admin portal...
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -62,7 +80,11 @@ export default function DashboardLayout() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto">
-        {user.role === "student" ? <StudentDashboard /> : <OwnerDashboard />}
+        {user.role === "student" ? (
+          <StudentDashboard />
+        ) : user.role === "owner" ? (
+          <OwnerDashboard />
+        ) : null}
       </main>
     </div>
   );

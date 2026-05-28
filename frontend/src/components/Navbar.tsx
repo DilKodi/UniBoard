@@ -13,6 +13,7 @@ import {
 export default function Navbar() {
   const navigate = useNavigate();
   const { isAuthenticated, user, logout } = useAuth();
+  const adminAppUrl = import.meta.env.VITE_ADMIN_APP_URL || "http://localhost:5174";
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +51,8 @@ export default function Navbar() {
       navigate("/owner-dashboard");
     } else if (user?.role === "student") {
       navigate("/student-dashboard");
+    } else if (user?.role === "admin") {
+      window.location.replace(adminAppUrl);
     } else {
       navigate("/dashboard");
     }

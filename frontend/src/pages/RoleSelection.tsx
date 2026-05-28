@@ -6,7 +6,12 @@ const RoleSelection = () => {
 
   const handleSelect = (role: 'student' | 'owner') => {
     // Navigate to login with the selected role state
-    navigate('/login', { state: { role } });
+    navigate('/login', {
+      state: {
+        role,
+        mode: 'login',
+      },
+    });
   };
 
   return (
@@ -19,7 +24,7 @@ const RoleSelection = () => {
       <div className="bg-white p-8 rounded-2xl shadow-xl max-w-2xl w-full">
         <h2 className="text-2xl font-bold text-center mb-8">Who are you?</h2>
         
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Student Card */}
           <button
             onClick={() => handleSelect('student')}
@@ -47,6 +52,7 @@ const RoleSelection = () => {
               List your property, manage bookings, and find tenants easily.
             </p>
           </button>
+
         </div>
       </div>
     </div>

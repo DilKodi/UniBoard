@@ -1,10 +1,5 @@
-import React, {
-  createContext,
-  useState,
-  useContext,
-  useEffect,
-  ReactNode,
-} from "react";
+import { createContext, useState, useContext, useEffect } from "react";
+import type { ReactNode } from "react";
 import { fetchUserProfile } from "../services/api";
 
 interface User {
@@ -40,7 +35,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     const loadUser = async () => {
-      const token = localStorage.getItem("token");
+      const token =
+        localStorage.getItem("token") || localStorage.getItem("access_token");
       if (token) {
         try {
           const userData = await fetchUserProfile();
@@ -48,6 +44,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         } catch (error) {
           console.error("Failed to load user:", error);
           localStorage.removeItem("token");
+          localStorage.removeItem("access_token");
         }
       }
       setLoading(false);
@@ -63,15 +60,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("access_token");
     setUser(null);
   };
 
   const signup = async (
-    email: string,
-    password: string,
-    role: string,
-    fullName: string,
-    additionalData?: any,
+    _email: string,
+    _password: string,
+    _role: string,
+    _fullName: string,
+    _additionalData?: any,
   ) => {
     // Signup logic will be handled in the AuthPage
     setUser(null);

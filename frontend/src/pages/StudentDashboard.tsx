@@ -6,11 +6,51 @@ import {
   Star,
   Home,
   Building,
-  Layers,
-  Maximize,
 } from "lucide-react";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { demoBoardingPlaces } from "../data/demoBoardingPlaces";
+import {
+  matchesUniversitySearch,
+  universitySearchOptions,
+} from "../data/universities";
+
+// Fix Leaflet default marker icon issue with React
+delete (L.Icon.Default.prototype as { _getIconUrl?: () => string })._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+});
+
+// Custom marker icons
+const redIcon = new L.Icon({
+  iconUrl:
+    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
+const blueIcon = new L.Icon({
+  iconUrl:
+    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
 
 interface Room {
   id: string;
@@ -21,7 +61,7 @@ interface Room {
 }
 
 interface BoardingPlace {
-  id: string;
+  id: string | number;
   name: string;
   nearestUniversity: string;
   distance: number;
@@ -33,6 +73,9 @@ interface BoardingPlace {
   icon: string;
   coordinates: { lat: number; lng: number };
   rooms?: Room[];
+  images?: string[];
+  description?: string;
+  demo?: boolean;
 }
 
 const mockBoardingPlaces: BoardingPlace[] = [
@@ -42,33 +85,33 @@ const mockBoardingPlaces: BoardingPlace[] = [
     nearestUniversity: "University of Moratuwa",
     distance: 0.5,
     distanceUnit: "km from campus",
-    price: 45000,
+    price: 9000,
     rating: 4.8,
     roomType: "Single Room",
     amenities: ["WiFi", "Security"],
     icon: "home",
-    coordinates: { lat: 0, lng: 0 },
+    coordinates: { lat: 6.7964, lng: 79.9006 },
     rooms: [
       {
         id: "r1",
         roomNumber: "101",
         type: "Single",
         isAvailable: true,
-        price: 45000,
+        price: 9000,
       },
       {
         id: "r2",
         roomNumber: "102",
         type: "Single",
         isAvailable: false,
-        price: 45000,
+        price: 9000,
       },
       {
         id: "r3",
         roomNumber: "103",
         type: "Single",
         isAvailable: true,
-        price: 45000,
+        price: 9000,
       },
     ],
   },
@@ -76,35 +119,35 @@ const mockBoardingPlaces: BoardingPlace[] = [
     id: "2",
     name: "Campus View Hostel",
     nearestUniversity: "University of Colombo",
-    distance: 0.8,
+    distance: 1.5,
     distanceUnit: "km from campus",
-    price: 38000,
+    price: 12000,
     rating: 4.6,
     roomType: "Shared",
     amenities: ["Meals", "WiFi"],
     icon: "building",
-    coordinates: { lat: 0, lng: 0 },
+    coordinates: { lat: 6.902, lng: 79.8608 },
     rooms: [
       {
         id: "r4",
         roomNumber: "201",
         type: "Shared",
         isAvailable: true,
-        price: 38000,
+        price: 12000,
       },
       {
         id: "r5",
         roomNumber: "202",
         type: "Shared",
         isAvailable: true,
-        price: 38000,
+        price: 12000,
       },
       {
         id: "r6",
         roomNumber: "203",
         type: "Shared",
         isAvailable: false,
-        price: 38000,
+        price: 12000,
       },
     ],
   },
@@ -112,35 +155,35 @@ const mockBoardingPlaces: BoardingPlace[] = [
     id: "3",
     name: "Elite Student Residence",
     nearestUniversity: "University of Moratuwa",
-    distance: 1.2,
+    distance: 3,
     distanceUnit: "km from campus",
-    price: 65000,
+    price: 18000,
     rating: 4.9,
     roomType: "Studio",
     amenities: ["Gym", "WiFi", "Security"],
     icon: "building2",
-    coordinates: { lat: 0, lng: 0 },
+    coordinates: { lat: 6.795, lng: 79.9 },
     rooms: [
       {
         id: "r7",
         roomNumber: "301",
         type: "Studio",
         isAvailable: false,
-        price: 65000,
+        price: 18000,
       },
       {
         id: "r8",
         roomNumber: "302",
         type: "Studio",
         isAvailable: true,
-        price: 65000,
+        price: 18000,
       },
       {
         id: "r9",
         roomNumber: "303",
         type: "Studio",
         isAvailable: true,
-        price: 65000,
+        price: 18000,
       },
     ],
   },
@@ -148,28 +191,28 @@ const mockBoardingPlaces: BoardingPlace[] = [
     id: "4",
     name: "Scholar's Den",
     nearestUniversity: "University of Peradeniya",
-    distance: 0.3,
+    distance: 0.8,
     distanceUnit: "km from campus",
-    price: 52000,
+    price: 7500,
     rating: 4.7,
     roomType: "Single Room",
-    amenities: ["Study Hall", "WiFi"],
+    amenities: ["WiFi", "Security"],
     icon: "home2",
-    coordinates: { lat: 0, lng: 0 },
+    coordinates: { lat: 7.2579, lng: 80.5975 },
     rooms: [
       {
         id: "r10",
         roomNumber: "401",
         type: "Single",
         isAvailable: true,
-        price: 52000,
+        price: 7500,
       },
       {
         id: "r11",
         roomNumber: "402",
         type: "Single",
         isAvailable: true,
-        price: 52000,
+        price: 7500,
       },
     ],
   },
@@ -177,42 +220,42 @@ const mockBoardingPlaces: BoardingPlace[] = [
     id: "5",
     name: "Comfort Student Home",
     nearestUniversity: "University of Colombo",
-    distance: 1.5,
+    distance: 4.5,
     distanceUnit: "km from campus",
-    price: 42000,
+    price: 14000,
     rating: 4.5,
     roomType: "Shared",
     amenities: ["Meals", "Gym", "Security"],
     icon: "home",
-    coordinates: { lat: 0, lng: 0 },
+    coordinates: { lat: 6.903, lng: 79.862 },
     rooms: [
       {
         id: "r12",
         roomNumber: "501",
         type: "Shared",
         isAvailable: true,
-        price: 42000,
+        price: 14000,
       },
       {
         id: "r13",
         roomNumber: "502",
         type: "Shared",
         isAvailable: false,
-        price: 42000,
+        price: 14000,
       },
       {
         id: "r14",
         roomNumber: "503",
         type: "Shared",
         isAvailable: true,
-        price: 42000,
+        price: 14000,
       },
       {
         id: "r15",
         roomNumber: "504",
         type: "Shared",
         isAvailable: false,
-        price: 42000,
+        price: 14000,
       },
     ],
   },
@@ -220,45 +263,161 @@ const mockBoardingPlaces: BoardingPlace[] = [
     id: "6",
     name: "Academic Plaza",
     nearestUniversity: "University of Kelaniya",
-    distance: 0.2,
+    distance: 2.5,
     distanceUnit: "km from campus",
-    price: 58000,
+    price: 21000,
     rating: 4.8,
     roomType: "Studio",
-    amenities: ["Study Hall", "WiFi", "Gym"],
+    amenities: ["WiFi", "Gym", "Security"],
     icon: "building",
-    coordinates: { lat: 0, lng: 0 },
+    coordinates: { lat: 6.955, lng: 79.91 },
     rooms: [
       {
         id: "r16",
         roomNumber: "601",
         type: "Studio",
         isAvailable: true,
-        price: 58000,
+        price: 21000,
       },
       {
         id: "r17",
         roomNumber: "602",
         type: "Studio",
         isAvailable: true,
-        price: 58000,
+        price: 21000,
       },
       {
         id: "r18",
         roomNumber: "603",
         type: "Studio",
         isAvailable: false,
-        price: 58000,
+        price: 21000,
       },
     ],
   },
+  {
+    id: "7",
+    name: "J'pura Residence",
+    nearestUniversity: "University of Sri Jayewardenepura",
+    distance: 1.2,
+    distanceUnit: "km from campus",
+    price: 13500,
+    rating: 4.4,
+    roomType: "Shared",
+    amenities: ["Meals", "WiFi", "Security"],
+    icon: "home",
+    coordinates: { lat: 6.8766, lng: 79.9217 },
+    rooms: [
+      {
+        id: "r19",
+        roomNumber: "701",
+        type: "Shared",
+        isAvailable: true,
+        price: 13500,
+      },
+      {
+        id: "r20",
+        roomNumber: "702",
+        type: "Shared",
+        isAvailable: true,
+        price: 13500,
+      },
+      {
+        id: "r21",
+        roomNumber: "703",
+        type: "Shared",
+        isAvailable: false,
+        price: 13500,
+      },
+    ],
+  },
+  {
+    id: "8",
+    name: "Moratuwa Budget Stay",
+    nearestUniversity: "University of Moratuwa",
+    distance: 0.7,
+    distanceUnit: "km from campus",
+    price: 8500,
+    rating: 4.3,
+    roomType: "Shared",
+    amenities: ["WiFi", "Security"],
+    icon: "home",
+    coordinates: { lat: 6.797, lng: 79.901 },
+    rooms: [
+      {
+        id: "r22",
+        roomNumber: "801",
+        type: "Shared",
+        isAvailable: true,
+        price: 8500,
+      },
+      {
+        id: "r23",
+        roomNumber: "802",
+        type: "Shared",
+        isAvailable: true,
+        price: 8500,
+      },
+      {
+        id: "r24",
+        roomNumber: "803",
+        type: "Shared",
+        isAvailable: false,
+        price: 8500,
+      },
+      {
+        id: "r25",
+        roomNumber: "804",
+        type: "Shared",
+        isAvailable: true,
+        price: 8500,
+      },
+    ],
+  },
+  {
+    id: "9",
+    name: "The Moratuwa Residence",
+    nearestUniversity: "University of Moratuwa",
+    distance: 0.9,
+    distanceUnit: "km from campus",
+    price: 16500,
+    rating: 4.7,
+    roomType: "Single Room",
+    amenities: ["WiFi", "Gym", "Meals", "Security"],
+    icon: "building",
+    coordinates: { lat: 6.7955, lng: 79.902 },
+    rooms: [
+      {
+        id: "r26",
+        roomNumber: "901",
+        type: "Single",
+        isAvailable: true,
+        price: 16500,
+      },
+      {
+        id: "r27",
+        roomNumber: "902",
+        type: "Single",
+        isAvailable: false,
+        price: 16500,
+      },
+      {
+        id: "r28",
+        roomNumber: "903",
+        type: "Single",
+        isAvailable: true,
+        price: 16500,
+      },
+    ],
+  },
+  ...demoBoardingPlaces,
 ];
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
   const [universityName, setUniversityName] = useState("");
   const [distance, setDistance] = useState("1 km");
-  const [priceRange, setPriceRange] = useState("$200-500");
+  const [priceRange, setPriceRange] = useState("Any");
   const [roomType, setRoomType] = useState("Any");
   const [filters, setFilters] = useState({
     wifiIncluded: false,
@@ -267,9 +426,9 @@ export default function StudentDashboard() {
     security247: false,
   });
 
-  const handleBoardingClick = (boardingId: string) => {
+  const handleBoardingClick = (boardingId: string | number) => {
     const selectedBoarding = mockBoardingPlaces.find(
-      (place) => place.id === boardingId,
+      (place) => place.id.toString() === boardingId.toString(),
     );
     if (selectedBoarding) {
       navigate(`/boarding/${boardingId}`, {
@@ -282,12 +441,7 @@ export default function StudentDashboard() {
   const getFilteredResults = () => {
     return mockBoardingPlaces.filter((place) => {
       // Filter by university name (exact match)
-      if (
-        universityName &&
-        !place.nearestUniversity
-          .toLowerCase()
-          .includes(universityName.toLowerCase())
-      ) {
+      if (universityName && !matchesUniversitySearch(universityName, place.nearestUniversity)) {
         return false;
       }
 
@@ -298,23 +452,25 @@ export default function StudentDashboard() {
       }
 
       // Filter by price range
-      let minPrice = 0,
-        maxPrice = Infinity;
-      if (priceRange === "$200-500") {
-        minPrice = 200 * 189; // Convert USD to LKR (approximate)
-        maxPrice = 500 * 189;
-      } else if (priceRange === "$500-800") {
-        minPrice = 500 * 189;
-        maxPrice = 800 * 189;
-      } else if (priceRange === "$800-1200") {
-        minPrice = 800 * 189;
-        maxPrice = 1200 * 189;
-      } else if (priceRange === "$1200+") {
-        minPrice = 1200 * 189;
-      }
+      if (priceRange !== "Any") {
+        let minPrice = 0,
+          maxPrice = Infinity;
+        if (priceRange === "LKR 7000-10000") {
+          minPrice = 7000;
+          maxPrice = 10000;
+        } else if (priceRange === "LKR 10000-15000") {
+          minPrice = 10000;
+          maxPrice = 15000;
+        } else if (priceRange === "LKR 15000-20000") {
+          minPrice = 15000;
+          maxPrice = 20000;
+        } else if (priceRange === "LKR 20000+") {
+          minPrice = 20000;
+        }
 
-      if (place.price < minPrice || place.price > maxPrice) {
-        return false;
+        if (place.price < minPrice || place.price > maxPrice) {
+          return false;
+        }
       }
 
       // Filter by room type
@@ -406,8 +562,14 @@ export default function StudentDashboard() {
                 placeholder="Enter university name..."
                 value={universityName}
                 onChange={(e) => setUniversityName(e.target.value)}
+                list="university-suggestions"
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+              <datalist id="university-suggestions">
+                {universitySearchOptions.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
             </div>
           </div>
 
@@ -439,10 +601,11 @@ export default function StudentDashboard() {
               onChange={(e) => setPriceRange(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option>$200-500</option>
-              <option>$500-800</option>
-              <option>$800-1200</option>
-              <option>$1200+</option>
+              <option>Any</option>
+              <option>LKR 7000-10000</option>
+              <option>LKR 10000-15000</option>
+              <option>LKR 15000-20000</option>
+              <option>LKR 20000+</option>
             </select>
           </div>
 
@@ -621,70 +784,48 @@ export default function StudentDashboard() {
         {/* Right Side - Map View */}
         <div className="w-1/2 bg-gray-100 border-l border-gray-200 relative">
           <div className="sticky top-0 h-full">
-            <div className="absolute top-4 left-4 z-10 bg-white rounded-lg shadow-md p-2 flex gap-2">
-              <button className="px-3 py-1.5 bg-white border border-gray-300 rounded text-sm font-medium hover:bg-gray-50 flex items-center gap-1">
-                <Layers className="w-4 h-4" />
-                Layers
-              </button>
-              <button className="px-3 py-1.5 bg-white border border-gray-300 rounded text-sm font-medium hover:bg-gray-50 flex items-center gap-1">
-                <Maximize className="w-4 h-4" />
-                Fullscreen
-              </button>
-            </div>
-
-            {/* Map Placeholder */}
-            <div className="h-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-gray-100 relative">
-              {/* Map markers representation */}
-              <div className="absolute top-1/4 left-1/4">
-                <div className="relative">
-                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center shadow-lg animate-bounce">
-                    <Home className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-white px-2 py-1 rounded shadow text-xs whitespace-nowrap">
-                    Sunrise Lodge
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute top-1/3 right-1/3">
-                <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center shadow-lg">
-                  <Building className="w-5 h-5 text-white" />
-                </div>
-              </div>
-
-              <div className="absolute bottom-1/3 left-1/3">
-                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                  <Building className="w-5 h-5 text-white" />
-                </div>
-              </div>
-
-              {/* Center Message */}
-              <div className="text-center bg-white bg-opacity-90 p-8 rounded-xl shadow-lg">
-                <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  Interactive map will load here
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  Enter a university name to see boarding locations
-                </p>
-                <p className="text-sm text-gray-500">
-                  relative to the university on the map
-                </p>
-              </div>
-
-              {/* Map Controls */}
-              <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-                <button className="w-10 h-10 bg-white rounded shadow-md hover:bg-gray-50 flex items-center justify-center text-xl font-bold">
-                  +
-                </button>
-                <button className="w-10 h-10 bg-white rounded shadow-md hover:bg-gray-50 flex items-center justify-center text-xl font-bold">
-                  −
-                </button>
-                <button className="w-10 h-10 bg-white rounded shadow-md hover:bg-gray-50 flex items-center justify-center">
-                  <MapPin className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+            {/* Map */}
+            <MapContainer
+              center={[7.8731, 80.7718]}
+              zoom={8}
+              style={{ height: "100%", width: "100%" }}
+              scrollWheelZoom={true}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              {filteredPlaces.map((place) => (
+                <Marker
+                  key={place.id}
+                  position={[place.coordinates.lat, place.coordinates.lng]}
+                  icon={
+                    place.name === "Sunrise Student Lodge" ? redIcon : blueIcon
+                  }
+                >
+                  <Popup>
+                    <div className="p-1">
+                      <h3 className="font-bold text-sm">{place.name}</h3>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {place.nearestUniversity}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        {place.distance} {place.distanceUnit}
+                      </p>
+                      <p className="font-semibold text-sm mt-1">
+                        LKR {place.price.toLocaleString()}/month
+                      </p>
+                      <button
+                        onClick={() => handleBoardingClick(place.id)}
+                        className="mt-2 w-full bg-blue-600 text-white text-xs py-1 px-2 rounded hover:bg-blue-700"
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
           </div>
         </div>
       </div>

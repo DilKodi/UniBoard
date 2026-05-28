@@ -1,116 +1,42 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, MapPin, Star } from "lucide-react";
+import { Search, Filter, MapPin, Home, Layers3, Clock3 } from "lucide-react";
 import Footer from "../components/Footer";
-
-interface Listing {
-  id: number;
-  title: string;
-  location: string;
-  price: number;
-  rating: number;
-  reviews: number;
-  image: string;
-  verified: boolean;
-  amenities: string[];
-  distance: string;
-}
+import { fetchListings, type BoardingPlaceResponse } from "../services/api";
+import { demoBoardingPlaces } from "../data/demoBoardingPlaces";
 
 const ListingsPage = () => {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState("");
-  const [filters] = useState({
-    priceRange: [0, 30000],
-    amenities: [] as string[],
-    verified: false,
-  });
+  const [listings, setListings] = useState<Array<BoardingPlaceResponse & { demo?: boolean }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Mock data - replace with API call
-  const listings: Listing[] = [
-    {
-      id: 1,
-      title: "Spacious Room in Modern Apartment",
-      location: "Nugegoda",
-      price: 15000,
-      rating: 4.8,
-      reviews: 45,
-      image: "/api/placeholder/300/200",
-      verified: true,
-      amenities: ["WiFi", "Attached Bathroom", "AC"],
-      distance: "2.5 km from campus",
-    },
-    {
-      id: 2,
-      title: "Cozy Studio Near Campus",
-      location: "Colombo 3",
-      price: 12000,
-      rating: 4.6,
-      reviews: 32,
-      image: "/api/placeholder/300/200",
-      verified: true,
-      amenities: ["Kitchen Access", "Laundry", "WiFi"],
-      distance: "1.5 km from campus",
-    },
-    {
-      id: 3,
-      title: "Luxury Boarding House",
-      location: "Battaramulla",
-      price: 25000,
-      rating: 4.9,
-      reviews: 78,
-      image: "/api/placeholder/300/200",
-      verified: true,
-      amenities: ["WiFi", "Attached Bathroom", "Gym", "Parking"],
-      distance: "3.2 km from campus",
-    },
-    {
-      id: 4,
-      title: "Affordable Room in Shared House",
-      location: "Wellawatta",
-      price: 8000,
-      rating: 4.4,
-      reviews: 28,
-      image: "/api/placeholder/300/200",
-      verified: false,
-      amenities: ["WiFi", "Shared Kitchen"],
-      distance: "2.0 km from campus",
-    },
-    {
-      id: 5,
-      title: "Modern Hostel - Private Rooms",
-      location: "Kirulapana",
-      price: 18000,
-      rating: 4.7,
-      reviews: 56,
-      image: "/api/placeholder/300/200",
-      verified: true,
-      amenities: ["WiFi", "Common Area", "Laundry", "Security"],
-      distance: "1.8 km from campus",
-    },
-    {
-      id: 6,
-      title: "Family-run Boarding Place",
-      location: "Dehiwala",
-      price: 11000,
-      rating: 4.5,
-      reviews: 35,
-      image: "/api/placeholder/300/200",
-      verified: true,
-      amenities: ["WiFi", "Home Cooked Food", "Laundry"],
-      distance: "4.5 km from campus",
-    },
-  ];
+  useEffect(() => {
+    const loadListings = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchListings();
+        setListings([...demoBoardingPlaces, ...data]);
+      } catch (err) {
+        console.error("Failed to load listings", err);
+        setListings([...demoBoardingPlaces]);
+        setError(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadListings();
+  }, []);
 
   const filteredListings = listings.filter((listing) => {
-    const matchesSearch =
-      listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      listing.location.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesPrice =
-      listing.price >= filters.priceRange[0] &&
-      listing.price <= filters.priceRange[1];
-    const matchesVerified = !filters.verified || listing.verified;
-
-    return matchesSearch && matchesPrice && matchesVerified;
+    const search = searchQuery.toLowerCase();
+    return (
+      listing.property_name.toLowerCase().includes(search) ||
+      listing.location.toLowerCase().includes(search) ||
+      listing.nearest_university.toLowerCase().includes(search)
+    );
   });
 
   return (
@@ -213,7 +139,13 @@ const ListingsPage = () => {
       {/* Listings Grid */}
       <section className="py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {filteredListings.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-12 text-gray-600">
+              Loading listings...
+            </div>
+          ) : error ? (
+            <div className="text-center py-12 text-red-600">{error}</div>
+          ) : filteredListings.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg">
                 No listings found. Try adjusting your search criteria.
@@ -227,70 +159,50 @@ const ListingsPage = () => {
                   className="bg-white rounded-lg overflow-hidden shadow hover:shadow-lg transition cursor-pointer"
                   onClick={() => navigate(`/boarding/${listing.id}`)}
                 >
-                  {/* Image Container */}
-                  <div className="relative">
-                    <img
-                      src={listing.image}
-                      alt={listing.title}
-                      className="w-full h-48 object-cover"
-                    />
-                    <div className="absolute top-3 left-3 bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                      LKR {listing.price.toLocaleString()}/month
+                  <div className="h-48 bg-gradient-to-br from-blue-600 via-sky-500 to-cyan-400 relative">
+                    <div className="absolute inset-0 bg-black/10" />
+                    <div className="absolute top-3 left-3 bg-white/90 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                      Listing #{listing.id}
                     </div>
-                    {listing.verified && (
-                      <div className="absolute top-3 right-3 bg-green-500 text-white px-2 py-1 rounded text-xs font-semibold">
-                        ✓ Verified
-                      </div>
-                    )}
+                    <div className="absolute bottom-3 left-3 right-3 text-white">
+                      <p className="text-sm uppercase tracking-wide text-white/80">
+                        {listing.status}
+                      </p>
+                      <h3 className="text-xl font-bold line-clamp-2">
+                        {listing.property_name}
+                      </h3>
+                    </div>
                   </div>
 
                   {/* Content */}
                   <div className="p-4">
                     <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-                      {listing.title}
+                      {listing.property_name}
                     </h3>
 
-                    {/* Location and Distance */}
                     <div className="flex items-center text-gray-600 text-sm mb-3">
                       <MapPin size={16} className="mr-1" />
                       <span>{listing.location}</span>
                     </div>
 
-                    <div className="text-xs text-gray-500 mb-3">
-                      📍 {listing.distance}
+                    <div className="flex flex-wrap gap-2 mb-4 text-xs text-gray-600">
+                      <span className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
+                        <Home size={12} />
+                        {listing.number_of_rooms} rooms
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
+                        <Layers3 size={12} />
+                        {listing.number_of_floors} floors
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
+                        <Clock3 size={12} />
+                        {new Date(listing.created_at).toLocaleDateString()}
+                      </span>
                     </div>
 
-                    {/* Amenities */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {listing.amenities.slice(0, 3).map((amenity, idx) => (
-                        <span
-                          key={idx}
-                          className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
-                        >
-                          {amenity}
-                        </span>
-                      ))}
-                      {listing.amenities.length > 3 && (
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                          +{listing.amenities.length - 3} more
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Rating */}
                     <div className="flex items-center justify-between border-t pt-3">
-                      <div className="flex items-center">
-                        <Star
-                          size={16}
-                          className="text-yellow-400 mr-1"
-                          fill="currentColor"
-                        />
-                        <span className="font-semibold text-gray-900">
-                          {listing.rating}
-                        </span>
-                        <span className="text-sm text-gray-500 ml-1">
-                          ({listing.reviews})
-                        </span>
+                      <div className="text-sm text-gray-600">
+                        Near {listing.nearest_university}
                       </div>
                       <button className="text-blue-700 hover:text-blue-800 font-medium text-sm">
                         View Details

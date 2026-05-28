@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 import { useToast } from "../components/ToastProvider";
+import { fetchMyListings, type BoardingPlaceResponse } from "../services/api";
 
 interface Room {
   id: string;
@@ -107,6 +108,7 @@ const mockVisitRequests: VisitRequest[] = [
 export default function OwnerDashboard() {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const [listings, setListings] = useState<BoardingPlaceResponse[]>([]);
   const [rooms, setRooms] = useState<Room[]>(mockRooms);
   const [visitRequests, setVisitRequests] =
     useState<VisitRequest[]>(mockVisitRequests);
@@ -125,6 +127,19 @@ export default function OwnerDashboard() {
     price: "",
     description: "",
   });
+
+  useEffect(() => {
+    const loadListings = async () => {
+      try {
+        const data = await fetchMyListings();
+        setListings(data);
+      } catch (error) {
+        console.error("Failed to load owner listings", error);
+      }
+    };
+
+    loadListings();
+  }, []);
 
   const totalViews = rooms.reduce((sum, room) => sum + room.views, 0);
   const activeBookings = rooms.filter(
@@ -242,6 +257,49 @@ export default function OwnerDashboard() {
             <Plus className="w-5 h-5" />
             List New Property
           </button>
+        </div>
+
+        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">My Boarding Listings</h2>
+              <p className="text-sm text-gray-600">Properties you have submitted for admin review</p>
+            </div>
+            <span className="text-sm text-gray-500">{listings.length} total</span>
+          </div>
+
+          {listings.length === 0 ? (
+            <p className="text-gray-500 text-sm">You have not submitted any boarding listings yet.</p>
+          ) : (
+            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {listings.map((listing) => (
+                <button
+                  key={listing.id}
+                  onClick={() => navigate(`/boarding/${listing.id}`)}
+                  className="text-left rounded-lg border border-gray-200 p-4 hover:border-blue-300 hover:bg-blue-50 transition"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">{listing.property_name}</h3>
+                      <p className="text-sm text-gray-600 mt-1">{listing.location}</p>
+                    </div>
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                      {listing.status}
+                    </span>
+                  </div>
+                  <div className="mt-3 text-sm text-gray-600">
+                    {listing.number_of_rooms} rooms · {listing.number_of_floors} floors
+                  </div>
+                  {listing.status === "rejected" && listing.rejection_reason && (
+                    <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+                      <p className="font-semibold mb-1">Rejected by admin</p>
+                      <p>{listing.rejection_reason}</p>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Performance Stats */}

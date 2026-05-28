@@ -37,16 +37,19 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const authState = (state ?? {}) as {
-    role?: "student" | "owner";
+    role?: "student" | "owner" | "admin";
     mode?: "login" | "signup";
   };
+  const adminAppUrl = import.meta.env.VITE_ADMIN_APP_URL || "http://localhost:5174";
+  const isAdminRoute = authState.role === "admin";
   const [isLogin, setIsLogin] = useState(authState.mode !== "signup");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   // Default to student if no role selected
-  const role = authState.role || "student";
+  const role = authState.role === "owner" ? "owner" : "student";
+  const roleLabel = role === "student" ? "Student" : "Owner";
   const {
     register,
     handleSubmit,
@@ -65,6 +68,24 @@ export default function AuthPage() {
       reset();
     }
   }, [authState.mode, reset]);
+
+  useEffect(() => {
+    if (isAdminRoute) {
+      window.location.replace(`${adminAppUrl}/login`);
+    }
+  }, [adminAppUrl, isAdminRoute]);
+
+  if (isAdminRoute) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
+        <div className="rounded-3xl border border-white/10 bg-white/5 px-8 py-10 text-center text-white shadow-2xl backdrop-blur">
+          <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Admin portal</p>
+          <h1 className="mt-4 text-3xl font-semibold">Redirecting to the admin subdomain</h1>
+          <p className="mt-3 text-sm text-slate-300">Use the dedicated admin app for authentication and listing review.</p>
+        </div>
+      </div>
+    );
+  }
 
   const validatePasswords = (value: string | undefined) => {
     const password = getValues("password");
@@ -95,6 +116,7 @@ export default function AuthPage() {
 
         if (result.access_token) {
           localStorage.setItem("token", result.access_token);
+          localStorage.setItem("access_token", result.access_token);
           await login();
 
           // Decode JWT token to get user role
@@ -111,6 +133,8 @@ export default function AuthPage() {
               navigate("/student-dashboard");
             } else if (userRole === "owner") {
               navigate("/owner-dashboard");
+            } else if (userRole === "admin") {
+              window.location.replace(`${adminAppUrl}/`);
             } else {
               navigate("/dashboard");
             }
@@ -176,8 +200,8 @@ export default function AuthPage() {
           </div>
           <h2 className="text-2xl font-bold">
             {isLogin
-              ? `Welcome Back, ${role === "student" ? "Student" : "Owner"}!`
-              : `Create ${role === "student" ? "Student" : "Owner"} Account`}
+              ? `Welcome Back, ${roleLabel}!`
+              : `Create ${roleLabel} Account`}
           </h2>
           <p className="opacity-90 mt-2">
             {isLogin
@@ -209,7 +233,7 @@ export default function AuthPage() {
                   htmlFor="full_name"
                   className="block text-sm font-medium text-gray-700 mb-1"
                 >
-                  Full Name
+                  Full Name / Display Name
                 </label>
                 <input
                   {...register("full_name", {
