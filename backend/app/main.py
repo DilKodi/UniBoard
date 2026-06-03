@@ -9,7 +9,6 @@ app = FastAPI(title="UniBoard API", version="1.0.0")
 # CORS setup to allow frontend communication
 origins = [
     "http://localhost:5173", # Vite default port
-    "http://localhost:5174",
     "http://localhost:3000",
 ]
 
