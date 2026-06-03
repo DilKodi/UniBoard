@@ -21,6 +21,8 @@ interface Room {
   price: number;
   views: number;
   status: "Occupied" | "Available";
+  maxSharing?: number;
+  slotsTaken?: number;
 }
 
 interface VisitRequest {
@@ -106,6 +108,29 @@ const mockVisitRequests: VisitRequest[] = [
 ];
 
 const getRoomsForListing = (listingId: number, propertyName: string, numRooms: number, numFloors: number): Room[] => {
+  const finalizeList = (roomsList: Room[]): Room[] => {
+    return roomsList.map(room => {
+      if (room.type.toLowerCase().includes("shared")) {
+        let maxSharing = 2;
+        const typeLower = room.type.toLowerCase();
+        if (typeLower.includes("2 bed") || typeLower.includes("2bed")) maxSharing = 2;
+        else if (typeLower.includes("3 bed") || typeLower.includes("3bed")) maxSharing = 3;
+        else if (typeLower.includes("4 bed") || typeLower.includes("4bed")) maxSharing = 4;
+        
+        const slotsTaken = room.slotsTaken !== undefined 
+          ? room.slotsTaken 
+          : (room.status === "Occupied" ? maxSharing : 1);
+        
+        return {
+          ...room,
+          maxSharing,
+          slotsTaken,
+        };
+      }
+      return room;
+    });
+  };
+
   // If this is Moratuwa Crest Residences (or ID is 2)
   if (propertyName.toLowerCase().includes("moratuwa crest") || listingId === 2) {
     const list: Room[] = [
@@ -165,7 +190,7 @@ const getRoomsForListing = (listingId: number, propertyName: string, numRooms: n
         status: isOccupied ? "Occupied" : "Available",
       });
     }
-    return list;
+    return finalizeList(list);
   }
 
   // If this is Lakeview Student Haven (or ID is 3)
@@ -219,7 +244,7 @@ const getRoomsForListing = (listingId: number, propertyName: string, numRooms: n
         status: isOccupied ? "Occupied" : "Available",
       });
     }
-    return list;
+    return finalizeList(list);
   }
 
   // If this is Jayewardenepura Comfort Stay (or ID is 9)
@@ -265,7 +290,7 @@ const getRoomsForListing = (listingId: number, propertyName: string, numRooms: n
         status: isOccupied ? "Occupied" : "Available",
       });
     }
-    return list;
+    return finalizeList(list);
   }
 
   // If this is Devi Boarding House (or ID is 17)
@@ -327,7 +352,7 @@ const getRoomsForListing = (listingId: number, propertyName: string, numRooms: n
         status: isOccupied ? "Occupied" : "Available",
       });
     }
-    return list;
+    return finalizeList(list);
   }
 
   // If this is Sewana Boarding Home (or ID is 18)
@@ -373,7 +398,7 @@ const getRoomsForListing = (listingId: number, propertyName: string, numRooms: n
         status: isOccupied ? "Occupied" : "Available",
       });
     }
-    return list;
+    return finalizeList(list);
   }
 
   // Generic fallback
@@ -393,7 +418,7 @@ const getRoomsForListing = (listingId: number, propertyName: string, numRooms: n
       status: isOccupied ? "Occupied" : "Available",
     });
   }
-  return rooms;
+  return finalizeList(rooms);
 };
 
 const getVisitRequestsForListing = (listingId: number, rooms: Room[]): VisitRequest[] => {
@@ -617,12 +642,16 @@ export default function OwnerDashboard() {
     type: "Single",
     price: "",
     description: "",
+    maxSharing: "2",
+    slotsTaken: "0",
   });
   const [editRoomForm, setEditRoomForm] = useState({
     name: "",
     type: "Single",
     price: "",
     description: "",
+    maxSharing: "2",
+    slotsTaken: "0",
   });
 
   useEffect(() => {
@@ -636,6 +665,8 @@ export default function OwnerDashboard() {
     };
 
     loadListings();
+    const interval = setInterval(loadListings, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -688,14 +719,22 @@ export default function OwnerDashboard() {
   ).length;
 
   const toggleRoomStatus = (roomId: string) => {
-    const updated = rooms.map((room) =>
-      room.id === roomId
-        ? {
-            ...room,
-            status: room.status === "Occupied" ? "Available" : "Occupied",
-          }
-        : room,
-    );
+    const updated = rooms.map((room) => {
+      if (room.id === roomId) {
+        const isOccupied = room.status === "Occupied";
+        const newStatus = isOccupied ? "Available" : "Occupied";
+        const isShared = room.type.toLowerCase().includes("shared");
+        
+        return {
+          ...room,
+          status: newStatus as "Occupied" | "Available",
+          slotsTaken: isShared && room.maxSharing !== undefined
+            ? (newStatus === "Occupied" ? room.maxSharing : 0)
+            : room.slotsTaken,
+        };
+      }
+      return room;
+    });
     setRooms(updated);
     if (selectedListingId !== null) {
       setRoomsStore(prev => ({ ...prev, [selectedListingId]: updated }));
@@ -734,16 +773,27 @@ export default function OwnerDashboard() {
     if (action === "accept") {
       const targetRequest = bookingRequests.find(r => r.id === requestId);
       if (targetRequest) {
-        const updatedRooms = rooms.map(room => 
-          room.name === targetRequest.room
-            ? { ...room, status: "Occupied" as const }
-            : room
-        );
+        const updatedRooms = rooms.map(room => {
+          if (room.name === targetRequest.room) {
+            const isShared = room.type.toLowerCase().includes("shared");
+            if (isShared && room.maxSharing !== undefined) {
+              const newSlots = Math.min(room.maxSharing, (room.slotsTaken ?? 0) + 1);
+              return {
+                ...room,
+                slotsTaken: newSlots,
+                status: newSlots === room.maxSharing ? ("Occupied" as const) : ("Available" as const),
+              };
+            } else {
+              return { ...room, status: "Occupied" as const };
+            }
+          }
+          return room;
+        });
         setRooms(updatedRooms);
         if (selectedListingId !== null) {
           setRoomsStore(prev => ({ ...prev, [selectedListingId]: updatedRooms }));
         }
-        addToast(`Booking accepted! Room status updated to Occupied.`, "success");
+        addToast(`Booking accepted! Room status updated.`, "success");
       }
     } else {
       addToast(`Booking request declined.`, "info");
@@ -754,6 +804,17 @@ export default function OwnerDashboard() {
     if (!newRoomForm.name || !newRoomForm.price) {
       addToast("Please fill in all required fields", "warning");
       return;
+    }
+
+    const isShared = newRoomForm.type === "Shared";
+    const max = isShared ? parseInt(newRoomForm.maxSharing) || 2 : undefined;
+    const taken = isShared ? parseInt(newRoomForm.slotsTaken) || 0 : undefined;
+
+    if (isShared && max !== undefined && taken !== undefined) {
+      if (taken > max) {
+        addToast("Beds filled cannot exceed total beds capacity", "warning");
+        return;
+      }
     }
 
     const nextRoomId = rooms.length > 0
@@ -768,10 +829,12 @@ export default function OwnerDashboard() {
     const newRoom: Room = {
       id: selectedListingId !== null ? `${selectedListingId}-${nextRoomId}` : nextRoomId,
       name: newRoomForm.name,
-      type: newRoomForm.type,
+      type: isShared ? `Shared • ${max} Beds` : newRoomForm.type,
       price: parseInt(newRoomForm.price),
       views: 0,
-      status: "Available",
+      status: isShared ? (taken === max ? "Occupied" : "Available") : "Available",
+      maxSharing: max,
+      slotsTaken: taken,
     };
 
     const updatedRooms = [...rooms, newRoom];
@@ -779,18 +842,28 @@ export default function OwnerDashboard() {
     if (selectedListingId !== null) {
       setRoomsStore(prev => ({ ...prev, [selectedListingId]: updatedRooms }));
     }
-    setNewRoomForm({ name: "", type: "Single", price: "", description: "" });
+    setNewRoomForm({ name: "", type: "Single", price: "", description: "", maxSharing: "2", slotsTaken: "0" });
     setShowAddRoomModal(false);
     addToast("Room added successfully!", "success");
   };
 
   const openEditModal = (room: Room) => {
     setSelectedRoomId(room.id);
+    const getCleanType = (typeStr: string) => {
+      const lower = typeStr.toLowerCase();
+      if (lower.includes("single")) return "Single";
+      if (lower.includes("shared")) return "Shared";
+      if (lower.includes("studio")) return "Studio";
+      if (lower.includes("double")) return "Double";
+      return typeStr;
+    };
     setEditRoomForm({
       name: room.name,
-      type: room.type,
+      type: getCleanType(room.type),
       price: room.price.toString(),
       description: "",
+      maxSharing: (room.maxSharing ?? 2).toString(),
+      slotsTaken: (room.slotsTaken ?? 0).toString(),
     });
     setShowEditRoomModal(true);
   };
@@ -801,22 +874,41 @@ export default function OwnerDashboard() {
       return;
     }
 
-    const updated = rooms.map((room) =>
-      room.id === selectedRoomId
-        ? {
-            ...room,
-            name: editRoomForm.name,
-            type: editRoomForm.type,
-            price: parseInt(editRoomForm.price),
-          }
-        : room,
-    );
+    const isShared = editRoomForm.type === "Shared";
+    const max = isShared ? parseInt(editRoomForm.maxSharing) || 2 : undefined;
+    const taken = isShared ? parseInt(editRoomForm.slotsTaken) || 0 : undefined;
+
+    if (isShared && max !== undefined && taken !== undefined) {
+      if (taken > max) {
+        addToast("Beds filled cannot exceed total beds capacity", "warning");
+        return;
+      }
+    }
+
+    const updated = rooms.map((room) => {
+      if (room.id === selectedRoomId) {
+        const newStatus = isShared
+          ? (taken === max ? "Occupied" : "Available")
+          : room.status;
+
+        return {
+          ...room,
+          name: editRoomForm.name,
+          type: isShared ? `Shared • ${max} Beds` : editRoomForm.type,
+          price: parseInt(editRoomForm.price),
+          maxSharing: max,
+          slotsTaken: taken,
+          status: newStatus as "Occupied" | "Available",
+        };
+      }
+      return room;
+    });
     setRooms(updated);
     if (selectedListingId !== null) {
       setRoomsStore(prev => ({ ...prev, [selectedListingId]: updated }));
     }
 
-    setEditRoomForm({ name: "", type: "Single", price: "", description: "" });
+    setEditRoomForm({ name: "", type: "Single", price: "", description: "", maxSharing: "2", slotsTaken: "0" });
     setSelectedRoomId(null);
     setShowEditRoomModal(false);
     addToast("Room updated successfully!", "success");
@@ -987,7 +1079,14 @@ export default function OwnerDashboard() {
                             <p className="font-semibold text-gray-900">
                               {room.name}
                             </p>
-                            <p className="text-sm text-gray-600">{room.type}</p>
+                            <p className="text-sm text-gray-600 flex items-center gap-1.5 flex-wrap">
+                              {room.type}
+                              {room.type.toLowerCase().includes("shared") && room.maxSharing !== undefined && (
+                                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded">
+                                  {room.slotsTaken ?? 0}/{room.maxSharing} filled
+                                </span>
+                              )}
+                            </p>
                           </div>
                         </div>
 
@@ -1236,6 +1335,41 @@ export default function OwnerDashboard() {
                 </select>
               </div>
 
+              {/* Shared Room Slots */}
+              {newRoomForm.type === "Shared" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Total Beds (Capacity) *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={newRoomForm.maxSharing}
+                      onChange={(e) =>
+                        setNewRoomForm({ ...newRoomForm, maxSharing: e.target.value })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Beds Filled (Slots Taken) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={newRoomForm.maxSharing}
+                      value={newRoomForm.slotsTaken}
+                      onChange={(e) =>
+                        setNewRoomForm({ ...newRoomForm, slotsTaken: e.target.value })
+                      }
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Price */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1349,6 +1483,41 @@ export default function OwnerDashboard() {
                 <option value="Double">Double</option>
               </select>
             </div>
+
+            {/* Shared Room Slots */}
+            {editRoomForm.type === "Shared" && (
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Total Beds (Capacity) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editRoomForm.maxSharing}
+                    onChange={(e) =>
+                      setEditRoomForm({ ...editRoomForm, maxSharing: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Beds Filled (Slots Taken) *
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={editRoomForm.maxSharing}
+                    value={editRoomForm.slotsTaken}
+                    onChange={(e) =>
+                      setEditRoomForm({ ...editRoomForm, slotsTaken: e.target.value })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Monthly Price */}
             <div className="mb-4">

@@ -77,3 +77,22 @@ def reject_listing(
 
     owner_profile = db.query(models.Owner).filter(models.Owner.id == listing.owner_id).first()
     return _build_listing_response(listing, owner_profile)
+
+
+@router.post("/{listing_id}/reset", response_model=schemas.BoardingPlaceResponse)
+def reset_listing(
+    listing_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(dependencies.require_admin),
+):
+    listing = db.query(models.BoardingPlace).filter(models.BoardingPlace.id == listing_id).first()
+    if listing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Listing not found")
+
+    listing.status = models.ListingStatus.PENDING
+    listing.rejection_reason = None
+    db.commit()
+    db.refresh(listing)
+
+    owner_profile = db.query(models.Owner).filter(models.Owner.id == listing.owner_id).first()
+    return _build_listing_response(listing, owner_profile)

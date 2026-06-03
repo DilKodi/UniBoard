@@ -119,4 +119,9 @@ export const rejectListing = async (id: number, rejectionReason?: string) => {
   return mapListing(response.data)
 }
 
+export const resetListing = async (id: number) => {
+  const response = await adminApi.post<any>(`/admin/listings/${id}/reset`)
+  return mapListing(response.data)
+}
+
 export default adminApi
