@@ -2,8 +2,9 @@ import os
 from datetime import datetime
 
 import httpx  # type: ignore[import-not-found]
-from fastapi import FastAPI, File, Form, Request, Response, UploadFile, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 
 def _origin_list(default: str) -> list[str]:
@@ -42,12 +43,19 @@ async def _proxy(request: Request, target_base_url: str, upstream_path: str) -> 
         upstream_url = f"{upstream_url}?{request.url.query}"
 
     body = await request.body()
-    async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
-        upstream_response = await client.request(
-            request.method,
-            upstream_url,
-            content=body if body else None,
-            headers=_filtered_headers(request),
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            upstream_response = await client.request(
+                request.method,
+                upstream_url,
+                content=body if body else None,
+                headers=_filtered_headers(request),
+            )
+    except httpx.RequestError:
+        service_name = upstream_path.strip("/").split("/")[0] or "upstream"
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": f"{service_name} service is unavailable"},
         )
 
     headers = {}
@@ -60,6 +68,34 @@ async def _proxy(request: Request, target_base_url: str, upstream_path: str) -> 
         status_code=upstream_response.status_code,
         headers=headers,
     )
+
+
+async def _require_admin(request: Request) -> Response | None:
+    async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+        profile_response = await client.get(
+            f"{AUTH_SERVICE_URL.rstrip('/')}/users/me",
+            headers=_filtered_headers(request),
+        )
+
+    if profile_response.status_code != 200:
+        headers = {}
+        content_type = profile_response.headers.get("content-type")
+        if content_type:
+        	headers["content-type"] = content_type
+        return Response(
+            content=profile_response.content,
+            status_code=profile_response.status_code,
+            headers=headers,
+        )
+
+    profile = profile_response.json()
+    if profile.get("role") != "admin":
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "Admin access required"},
+        )
+
+    return None
 
 @app.get("/health")
 def health_check():
@@ -87,22 +123,25 @@ async def user_me(request: Request):
     return await _proxy(request, AUTH_SERVICE_URL, "/users/me")
 
 
-@app.api_route("/listings/upload", methods=["POST", "OPTIONS"])
-async def upload_listing_document(request: Request, file: UploadFile = File(None)):
+@app.api_route("/owners/{owner_id}", methods=["GET", "OPTIONS"])
+async def owner_profile(request: Request, owner_id: int):
     if request.method == "OPTIONS":
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, AUTH_SERVICE_URL, f"/owners/{owner_id}")
 
-    upload = file or (await request.form()).get("file")
-    if not isinstance(upload, UploadFile):
-        return Response(content='{"detail":"file is required"}', media_type="application/json", status_code=422)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    safe_name = f"{timestamp}_{upload.filename}"
-    return Response(
-        content=f'{{"filename":"{safe_name}"}}',
-        media_type="application/json",
-        status_code=200,
-    )
+@app.api_route("/listings/upload", methods=["POST", "OPTIONS"])
+async def upload_listing_document(request: Request):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, BOARDING_SERVICE_URL, "/boardings/upload")
+
+
+@app.api_route("/uploads/{file_path:path}", methods=["GET", "OPTIONS"])
+async def uploaded_file(request: Request, file_path: str):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, BOARDING_SERVICE_URL, f"/uploads/{file_path}")
 
 
 @app.api_route("/listings", methods=["GET", "POST", "OPTIONS"])
@@ -157,6 +196,42 @@ async def listing_detail(request: Request, listing_id: int):
     if request.method == "OPTIONS":
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     return await _proxy(request, BOARDING_SERVICE_URL, f"/boardings/{listing_id}")
+
+
+@app.api_route("/admin/listings/pending", methods=["GET", "OPTIONS"])
+async def admin_pending_listings(request: Request):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    admin_check = await _require_admin(request)
+    if admin_check is not None:
+        return admin_check
+
+    return await _proxy(request, BOARDING_SERVICE_URL, "/boardings/admin/listings/pending")
+
+
+@app.api_route("/admin/listings/{listing_id}/approve", methods=["POST", "OPTIONS"])
+async def admin_approve_listing(request: Request, listing_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    admin_check = await _require_admin(request)
+    if admin_check is not None:
+        return admin_check
+
+    return await _proxy(request, BOARDING_SERVICE_URL, f"/boardings/admin/listings/{listing_id}/approve")
+
+
+@app.api_route("/admin/listings/{listing_id}/reject", methods=["POST", "OPTIONS"])
+async def admin_reject_listing(request: Request, listing_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    admin_check = await _require_admin(request)
+    if admin_check is not None:
+        return admin_check
+
+    return await _proxy(request, BOARDING_SERVICE_URL, f"/boardings/admin/listings/{listing_id}/reject")
 
 @app.get("/routes")
 def list_routes():

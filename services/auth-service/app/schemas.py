@@ -22,9 +22,22 @@ class UserResponse(UserBase):
     class Config:
         from_attributes = True
 
+
+class OwnerProfileResponse(BaseModel):
+    id: int
+    user_id: int
+    full_name: str
+    email: str
+    contact_number: Optional[str] = None
+    nic_number: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
 class Token(BaseModel):
     access_token: str
     token_type: str
+    role: Optional[UserRole] = None
 
 class TokenData(BaseModel):
     email: Optional[str] = None

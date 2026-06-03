@@ -10,6 +10,7 @@ export interface BoardingPlaceResponse {
   nearest_university: string;
   number_of_floors: number;
   number_of_rooms: number;
+  total_rooms?: number;
   verification_document_name?: string | null;
   rejection_reason?: string | null;
   status: string;
@@ -51,6 +52,13 @@ api.interceptors.response.use(
   }
 );
 
+const mapListing = (item: any): BoardingPlaceResponse => ({
+  ...item,
+  number_of_rooms: item.number_of_rooms !== undefined && item.number_of_rooms !== null
+    ? item.number_of_rooms
+    : (item.total_rooms !== undefined && item.total_rooms !== null ? item.total_rooms : 0),
+});
+
 // Authentication endpoints
 export const loginUser = async (email: string, password: string) => {
   const formData = new URLSearchParams();
@@ -91,35 +99,35 @@ export const createListing = async (payload: Record<string, unknown>) => {
 };
 
 export const fetchListings = async () => {
-  const response = await api.get<BoardingPlaceResponse[]>('/listings');
-  return response.data;
+  const response = await api.get<any[]>('/listings');
+  return response.data.map(mapListing);
 };
 
 export const fetchListingById = async (id: number) => {
-  const response = await api.get<BoardingPlaceResponse>(`/listings/${id}`);
-  return response.data;
+  const response = await api.get<any>(`/listings/${id}`);
+  return mapListing(response.data);
 };
 
 export const fetchMyListings = async () => {
-  const response = await api.get<BoardingPlaceResponse[]>('/listings/mine');
-  return response.data;
+  const response = await api.get<any[]>('/listings/mine');
+  return response.data.map(mapListing);
 };
 
 export const fetchPendingListings = async () => {
-  const response = await api.get<BoardingPlaceResponse[]>('/admin/listings/pending');
-  return response.data;
+  const response = await api.get<any[]>('/admin/listings/pending');
+  return response.data.map(mapListing);
 };
 
 export const approveListing = async (id: number) => {
-  const response = await api.post<BoardingPlaceResponse>(`/admin/listings/${id}/approve`);
-  return response.data;
+  const response = await api.post<any>(`/admin/listings/${id}/approve`);
+  return mapListing(response.data);
 };
 
 export const rejectListing = async (id: number, rejectionReason?: string) => {
-  const response = await api.post<BoardingPlaceResponse>(`/admin/listings/${id}/reject`, {
+  const response = await api.post<any>(`/admin/listings/${id}/reject`, {
     rejection_reason: rejectionReason || null,
   });
-  return response.data;
+  return mapListing(response.data);
 };
 
 export const uploadDocument = async (file: File) => {

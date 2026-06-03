@@ -1,10 +1,100 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import List, Optional
 from .. import models, schemas, database
 
 router = APIRouter(prefix="/boardings", tags=["Boarding Properties"])
+
+UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
+
+
+def _save_upload(file: UploadFile) -> tuple[str, str]:
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    original_name = Path(file.filename or "document").name
+    safe_name = f"{uuid4().hex}_{original_name}"
+    target_path = UPLOAD_DIR / safe_name
+
+    with target_path.open("wb") as target_file:
+        while chunk := file.file.read(1024 * 1024):
+            target_file.write(chunk)
+
+    return safe_name, f"/uploads/{safe_name}"
+
+
+def _serialize_property(property: models.BoardingProperty) -> dict:
+        verification_document_name = None
+        if property.verification_document_url:
+            verification_document_name = Path(property.verification_document_url).name
+
+        return {
+                "id": property.id,
+                "owner_id": property.owner_id,
+                "owner_full_name": None,
+                "property_name": property.property_name,
+                "location": property.location,
+                "address": property.address,
+                "nearest_university": property.nearest_university,
+                "number_of_floors": property.number_of_floors,
+                "number_of_rooms": property.total_rooms,
+                "verification_document_name": verification_document_name,
+                "rejection_reason": None,
+                "status": property.status.value if property.status else models.PropertyStatus.PENDING.value,
+                "created_at": property.created_at,
+        }
+
+
+@router.post("/upload")
+async def upload_verification_document(file: UploadFile = File(...)):
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File name is required")
+
+    safe_name, file_url = _save_upload(file)
+    return {
+        "filename": safe_name,
+        "original_filename": file.filename,
+        "file_url": file_url,
+    }
+
+
+@router.get("/admin/listings/pending")
+def get_pending_listings(db: Session = Depends(database.get_db)):
+    listings = (
+        db.query(models.BoardingProperty)
+        .order_by(models.BoardingProperty.created_at.desc())
+        .all()
+    )
+    return [_serialize_property(listing) for listing in listings]
+
+
+
+@router.post("/admin/listings/{listing_id}/approve")
+def approve_listing(listing_id: int, db: Session = Depends(database.get_db)):
+    listing = db.query(models.BoardingProperty).filter(models.BoardingProperty.id == listing_id).first()
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    listing.status = models.PropertyStatus.VERIFIED
+    listing.is_verified = True
+    db.commit()
+    db.refresh(listing)
+    return _serialize_property(listing)
+
+
+@router.post("/admin/listings/{listing_id}/reject")
+def reject_listing(listing_id: int, payload: schemas.RejectListingRequest, db: Session = Depends(database.get_db)):
+    listing = db.query(models.BoardingProperty).filter(models.BoardingProperty.id == listing_id).first()
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    listing.status = models.PropertyStatus.REJECTED
+    listing.is_verified = False
+    db.commit()
+    db.refresh(listing)
+    return _serialize_property(listing)
 
 @router.post("", response_model=schemas.PropertyResponse, status_code=201)
 def create_property(
@@ -21,10 +111,12 @@ def create_property(
         nearest_university=property_data.nearest_university,
         distance_from_university=property_data.distance_from_university,
         number_of_floors=property_data.number_of_floors,
-        total_rooms=property_data.total_rooms,
+        total_rooms=property_data.total_rooms or property_data.number_of_rooms or 0,
         latitude=property_data.latitude,
         longitude=property_data.longitude,
         verification_document_url=property_data.verification_document_url,
+        status=models.PropertyStatus.PENDING,
+        is_verified=False,
     )
     
     db.add(db_property)
@@ -91,8 +183,8 @@ def get_property(property_id: int, db: Session = Depends(database.get_db)):
     if not property:
         raise HTTPException(status_code=404, detail="Property not found")
     
-    # Increment views
-    property.views_count += 1
+    # Increment views (handle None for legacy records)
+    property.views_count = (property.views_count or 0) + 1
     db.commit()
     
     return property

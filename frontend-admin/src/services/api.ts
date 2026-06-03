@@ -10,10 +10,20 @@ export interface BoardingPlaceResponse {
   nearest_university: string
   number_of_floors: number
   number_of_rooms: number
+  total_rooms?: number
   verification_document_name?: string | null
   rejection_reason?: string | null
   status: string
   created_at: string
+}
+
+export interface OwnerProfileResponse {
+  id: number
+  user_id: number
+  full_name: string
+  email: string
+  contact_number?: string | null
+  nic_number?: string | null
 }
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:8001'
@@ -62,6 +72,13 @@ adminApi.interceptors.response.use(
   handleUnauthorized,
 )
 
+const mapListing = (item: any): BoardingPlaceResponse => ({
+  ...item,
+  number_of_rooms: item.number_of_rooms !== undefined && item.number_of_rooms !== null
+    ? item.number_of_rooms
+    : (item.total_rooms !== undefined && item.total_rooms !== null ? item.total_rooms : 0),
+})
+
 export const loginUser = async (email: string, password: string) => {
   const formData = new URLSearchParams()
   formData.append('username', email)
@@ -80,21 +97,26 @@ export const fetchUserProfile = async () => {
   return response.data as { id: number; email: string; role: 'student' | 'owner' | 'admin'; is_active: boolean; is_verified: boolean }
 }
 
+export const fetchOwnerProfile = async (ownerId: number) => {
+  const response = await authApi.get(`/owners/${ownerId}`)
+  return response.data as OwnerProfileResponse
+}
+
 export const fetchPendingListings = async () => {
-  const response = await adminApi.get<BoardingPlaceResponse[]>('/admin/listings/pending')
-  return response.data
+  const response = await adminApi.get<any[]>('/admin/listings/pending')
+  return response.data.map(mapListing)
 }
 
 export const approveListing = async (id: number) => {
-  const response = await adminApi.post<BoardingPlaceResponse>(`/admin/listings/${id}/approve`)
-  return response.data
+  const response = await adminApi.post<any>(`/admin/listings/${id}/approve`)
+  return mapListing(response.data)
 }
 
 export const rejectListing = async (id: number, rejectionReason?: string) => {
-  const response = await adminApi.post<BoardingPlaceResponse>(`/admin/listings/${id}/reject`, {
+  const response = await adminApi.post<any>(`/admin/listings/${id}/reject`, {
     rejection_reason: rejectionReason || null,
   })
-  return response.data
+  return mapListing(response.data)
 }
 
 export default adminApi

@@ -24,10 +24,10 @@ class RoomUpdate(BaseModel):
 class RoomResponse(RoomBase):
     id: int
     property_id: int
-    status: RoomStatus
-    is_available: bool
-    created_at: datetime
-    updated_at: datetime
+    status: Optional[RoomStatus] = None
+    is_available: Optional[bool] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -61,6 +61,7 @@ class PropertyBase(BaseModel):
 class PropertyCreate(PropertyBase):
     owner_id: int
     verification_document_url: Optional[str] = None
+    number_of_rooms: Optional[int] = None
     amenities: List[str] = []
 
 class PropertyUpdate(BaseModel):
@@ -76,30 +77,31 @@ class PropertyUpdate(BaseModel):
 class PropertyResponse(PropertyBase):
     id: int
     owner_id: int
-    status: PropertyStatus
-    is_verified: bool
-    rating: float
-    total_reviews: int
-    views_count: int
-    created_at: datetime
-    updated_at: datetime
-    rooms: List[RoomResponse] = []
-    amenities: List[AmenityResponse] = []
+    status: Optional[PropertyStatus] = None
+    is_verified: Optional[bool] = None
+    rating: Optional[float] = None
+    total_reviews: Optional[int] = None
+    views_count: Optional[int] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    rooms: List[RoomResponse] = Field(default_factory=list)
+    amenities: List[AmenityResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
 
 class PropertyListResponse(BaseModel):
     id: int
+    owner_id: int
     property_name: str
     location: str
     nearest_university: str
     distance_from_university: Optional[float]
-    rating: float
-    total_reviews: int
-    is_verified: bool
-    rooms: List[RoomResponse] = []
-    amenities: List[AmenityResponse] = []
+    rating: Optional[float] = None
+    total_reviews: Optional[int] = None
+    is_verified: Optional[bool] = None
+    rooms: List[RoomResponse] = Field(default_factory=list)
+    amenities: List[AmenityResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
@@ -115,3 +117,7 @@ class PropertySearchParams(BaseModel):
     amenities: Optional[List[str]] = None
     skip: int = 0
     limit: int = 20
+
+
+class RejectListingRequest(BaseModel):
+    rejection_reason: Optional[str] = None
