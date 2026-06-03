@@ -196,7 +196,7 @@ const ListingsPage = () => {
                       </span>
                       <span className="inline-flex items-center gap-1 bg-gray-100 px-2 py-1 rounded">
                         <Clock3 size={12} />
-                        {new Date(listing.created_at).toLocaleDateString()}
+                        {listing.created_at ? new Date(listing.created_at).toLocaleDateString() : "N/A"}
                       </span>
                     </div>
 

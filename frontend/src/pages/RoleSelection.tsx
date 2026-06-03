@@ -21,10 +21,10 @@ const RoleSelection = () => {
         <p className="text-gray-600">Find your perfect boarding place today</p>
       </div>
 
-      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-2xl w-full">
+      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-xl w-full">
         <h2 className="text-2xl font-bold text-center mb-8">Who are you?</h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           {/* Student Card */}
           <button
             onClick={() => handleSelect('student')}
@@ -52,7 +52,6 @@ const RoleSelection = () => {
               List your property, manage bookings, and find tenants easily.
             </p>
           </button>
-
         </div>
       </div>
     </div>

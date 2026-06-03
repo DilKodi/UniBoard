@@ -5,6 +5,7 @@ import { loginUser, signupUser } from "../services/api";
 import {
   GraduationCap,
   Building2,
+  ShieldCheck,
   Loader2,
   AlertCircle,
   CheckCircle,
@@ -40,16 +41,16 @@ export default function AuthPage() {
     role?: "student" | "owner" | "admin";
     mode?: "login" | "signup";
   };
-  const adminAppUrl = import.meta.env.VITE_ADMIN_APP_URL || "http://localhost:5174";
-  const isAdminRoute = authState.role === "admin";
   const [isLogin, setIsLogin] = useState(authState.mode !== "signup");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   // Default to student if no role selected
-  const role = authState.role === "owner" ? "owner" : "student";
-  const roleLabel = role === "student" ? "Student" : "Owner";
+  const role = authState.role || "student";
+  const roleLabel =
+    role === "student" ? "Student" : role === "owner" ? "Owner" : "Admin";
+  const isAdmin = role === "admin";
   const {
     register,
     handleSubmit,
@@ -68,24 +69,6 @@ export default function AuthPage() {
       reset();
     }
   }, [authState.mode, reset]);
-
-  useEffect(() => {
-    if (isAdminRoute) {
-      window.location.replace(`${adminAppUrl}/login`);
-    }
-  }, [adminAppUrl, isAdminRoute]);
-
-  if (isAdminRoute) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 px-4">
-        <div className="rounded-3xl border border-white/10 bg-white/5 px-8 py-10 text-center text-white shadow-2xl backdrop-blur">
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-300">Admin portal</p>
-          <h1 className="mt-4 text-3xl font-semibold">Redirecting to the admin subdomain</h1>
-          <p className="mt-3 text-sm text-slate-300">Use the dedicated admin app for authentication and listing review.</p>
-        </div>
-      </div>
-    );
-  }
 
   const validatePasswords = (value: string | undefined) => {
     const password = getValues("password");
@@ -134,7 +117,7 @@ export default function AuthPage() {
             } else if (userRole === "owner") {
               navigate("/owner-dashboard");
             } else if (userRole === "admin") {
-              window.location.replace(`${adminAppUrl}/`);
+              navigate("/admin-dashboard");
             } else {
               navigate("/dashboard");
             }
@@ -189,11 +172,13 @@ export default function AuthPage() {
       <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden">
         {/* Header */}
         <div
-          className={`p-6 text-center text-white ${role === "student" ? "bg-primary" : "bg-green-600"}`}
+          className={`p-6 text-center text-white ${role === "student" ? "bg-primary" : isAdmin ? "bg-slate-800" : "bg-green-600"}`}
         >
           <div className="flex justify-center mb-4">
             {role === "student" ? (
               <GraduationCap size={48} />
+            ) : isAdmin ? (
+              <ShieldCheck size={48} />
             ) : (
               <Building2 size={48} />
             )}
@@ -206,7 +191,9 @@ export default function AuthPage() {
           <p className="opacity-90 mt-2">
             {isLogin
               ? "Enter your details to access your account"
-              : "Join UniBoard to get started"}
+              : isAdmin
+                ? "Create an administrator account to manage listing approvals and platform oversight"
+                : "Join UniBoard to get started"}
           </p>
         </div>
 
@@ -443,7 +430,9 @@ export default function AuthPage() {
               className={`w-full py-3 rounded-lg text-white font-semibold transition-colors flex justify-center items-center ${
                 role === "student"
                   ? "bg-primary hover:bg-blue-700 disabled:bg-blue-300"
-                  : "bg-green-600 hover:bg-green-700 disabled:bg-green-300"
+                  : isAdmin
+                    ? "bg-slate-800 hover:bg-slate-900 disabled:bg-slate-400"
+                    : "bg-green-600 hover:bg-green-700 disabled:bg-green-300"
               }`}
             >
               {loading ? (

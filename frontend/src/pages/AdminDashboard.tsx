@@ -16,7 +16,9 @@ export default function AdminDashboard() {
   const [listings, setListings] = useState<BoardingPlaceResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<number | null>(null);
-  const [rejectionReasons, setRejectionReasons] = useState<Record<number, string>>({});
+  const [rejectionReasons, setRejectionReasons] = useState<
+    Record<number, string>
+  >({});
 
   useEffect(() => {
     const loadPending = async () => {
@@ -70,7 +72,9 @@ export default function AdminDashboard() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Admin Review</h1>
-            <p className="text-gray-600 mt-2">Approve or reject boarding listings submitted by owners.</p>
+            <p className="text-gray-600 mt-2">
+              Approve or reject boarding listings submitted by owners.
+            </p>
           </div>
           <button
             onClick={() => navigate("/listings")}
@@ -81,7 +85,9 @@ export default function AdminDashboard() {
         </div>
 
         {loading ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-8 text-gray-600">Loading pending listings...</div>
+          <div className="bg-white rounded-xl border border-gray-200 p-8 text-gray-600">
+            Loading pending listings...
+          </div>
         ) : listings.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-200 p-8 text-gray-600">
             No listings are waiting for review.
@@ -89,22 +95,32 @@ export default function AdminDashboard() {
         ) : (
           <div className="grid gap-4">
             {listings.map((listing) => (
-              <div key={listing.id} className="bg-white rounded-xl border border-gray-200 p-6">
+              <div
+                key={listing.id}
+                className="bg-white rounded-xl border border-gray-200 p-6"
+              >
                 <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <h2 className="text-xl font-bold text-gray-900">{listing.property_name}</h2>
+                      <h2 className="text-xl font-bold text-gray-900">
+                        {listing.property_name}
+                      </h2>
                       <span className="text-xs font-semibold px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
                         {listing.status}
                       </span>
                     </div>
                     <p className="text-gray-600 mt-2">{listing.location}</p>
                     <p className="text-sm text-gray-500 mt-1">
-                      Owner: {listing.owner_full_name || "Unknown"} · {listing.number_of_rooms} rooms · {listing.number_of_floors} floors
+                      Owner: {listing.owner_full_name || "Unknown"} ·{" "}
+                      {listing.number_of_rooms} rooms ·{" "}
+                      {listing.number_of_floors} floors
                     </p>
-                    <p className="text-sm text-gray-500 mt-1">University: {listing.nearest_university}</p>
                     <p className="text-sm text-gray-500 mt-1">
-                      Verification document: {listing.verification_document_name || "Not uploaded"}
+                      University: {listing.nearest_university}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Verification document:{" "}
+                      {listing.verification_document_name || "Not uploaded"}
                     </p>
                     <div className="mt-4">
                       <label className="block text-sm font-medium text-gray-700 mb-2">

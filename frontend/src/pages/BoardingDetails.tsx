@@ -13,15 +13,97 @@ type RoomOption = {
   type: string;
   isAvailable: boolean;
   price: number;
+  maxSharing?: number;
+  slotsTaken?: number;
+  floorNumber?: number;
 }
 
 type BoardingDetailsListing = BoardingPlaceResponse & {
   images?: string[];
   description?: string;
-  owner_contact_number?: string;
-  owner_email?: string;
+  owner_contact_number?: string | null;
+  owner_email?: string | null;
   rooms?: RoomOption[];
+  price?: number;
 }
+
+const getCompleteRoomsList = (listing: BoardingDetailsListing): RoomOption[] => {
+  const existingRooms = listing.rooms || [];
+  if (existingRooms.length >= listing.number_of_rooms) {
+    return existingRooms;
+  }
+
+  const completeRooms = [...existingRooms];
+  const missingCount = listing.number_of_rooms - existingRooms.length;
+
+  const existingRoomNumbers = new Set(existingRooms.map((r) => r.roomNumber.toLowerCase()));
+  const existingRoomIds = new Set(existingRooms.map((r) => r.id));
+
+  // Find min price of existing rooms, default to listing price or 10000
+  const basePrice = existingRooms.length > 0 
+    ? Math.min(...existingRooms.map(r => r.price)) 
+    : (listing.price || 10000);
+  
+  // Determine primary type
+  const primaryType = existingRooms[0]?.type || "Single";
+
+  let generatedCount = 0;
+  
+  // Try generating room numbers across floors
+  for (let floor = 1; floor <= listing.number_of_floors; floor++) {
+    if (generatedCount >= missingCount) break;
+
+    // Generate up to 10 rooms per floor
+    for (let rNum = 1; rNum <= 10; rNum++) {
+      if (generatedCount >= missingCount) break;
+
+      const roomNumStr = `${floor}${String(rNum).padStart(2, "0")}`; // e.g. "101", "102"
+      
+      if (!existingRoomNumbers.has(roomNumStr.toLowerCase())) {
+        const id = `gen-${listing.id}-${floor}-${rNum}`;
+        if (!existingRoomIds.has(id)) {
+          completeRooms.push({
+            id,
+            roomNumber: roomNumStr,
+            type: primaryType,
+            isAvailable: true,
+            price: basePrice,
+            floorNumber: floor,
+          });
+          generatedCount++;
+        }
+      }
+    }
+  }
+
+  // Fallback generation if floor count was too small to fit the rooms
+  let i = 1;
+  while (generatedCount < missingCount) {
+    const roomNumStr = `Room ${i}`;
+    if (!existingRoomNumbers.has(roomNumStr.toLowerCase())) {
+      completeRooms.push({
+        id: `gen-fallback-${listing.id}-${i}`,
+        roomNumber: roomNumStr,
+        type: primaryType,
+        isAvailable: true,
+        price: basePrice,
+        floorNumber: 1,
+      });
+      generatedCount++;
+    }
+    i++;
+  }
+
+  // Sort rooms by floor number first, then room number alphabetically
+  return completeRooms.sort((a, b) => {
+    if (a.floorNumber !== undefined && b.floorNumber !== undefined) {
+      if (a.floorNumber !== b.floorNumber) {
+        return a.floorNumber - b.floorNumber;
+      }
+    }
+    return a.roomNumber.localeCompare(b.roomNumber, undefined, { numeric: true });
+  });
+};
 
 export default function BoardingDetails() {
   const navigate = useNavigate();
@@ -30,6 +112,11 @@ export default function BoardingDetails() {
   const { addToast } = useToast();
   const [listing, setListing] = useState<BoardingDetailsListing | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  const allRooms = useMemo(() => {
+    if (!listing) return [];
+    return getCompleteRoomsList(listing);
+  }, [listing]);
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showBookModal, setShowBookModal] = useState(false);
   const [visitDate, setVisitDate] = useState("");
@@ -64,7 +151,7 @@ export default function BoardingDetails() {
         return;
       }
 
-      const demoListing = demoBoardingPlaces.find((place) => place.id.toString() === id);
+      const demoListing = demoBoardingPlaces.find((place) => place.id.toString() === id || `mock-${place.id}` === id);
       if (demoListing) {
         setListing(demoListing);
         setSelectedImage(demoListing.images?.[0] || null);
@@ -79,7 +166,7 @@ export default function BoardingDetails() {
         setSelectedImage(null);
       } catch (err) {
         console.error("Failed to load listing", err);
-        const fallbackListing = demoBoardingPlaces.find((place) => place.id.toString() === id);
+        const fallbackListing = demoBoardingPlaces.find((place) => place.id.toString() === id || `mock-${place.id}` === id);
         if (fallbackListing) {
           setListing(fallbackListing);
           setSelectedImage(fallbackListing.images?.[0] || null);
@@ -125,20 +212,19 @@ export default function BoardingDetails() {
     setShowVisitModal(false);
   };
 
-  const handleBookNow = () =>
-    {
-      const firstSelectableRoom = listing?.rooms?.find((room) => room.isAvailable) || listing?.rooms?.[0];
-      setSelectedRoomId(firstSelectableRoom?.id || "");
-      setShowBookModal(true);
-    };
+  const handleBookNow = () => {
+    const firstSelectableRoom = allRooms.find((room) => room.isAvailable) || allRooms[0];
+    setSelectedRoomId(firstSelectableRoom?.id || "");
+    setShowBookModal(true);
+  };
 
   const submitBookingRequest = () => {
-    if (!listing?.rooms?.length) {
+    if (!allRooms.length) {
       addToast("Room booking details are not available for this property yet.", "warning");
       return;
     }
 
-    const selectedRoom = listing.rooms.find((room) => room.id === selectedRoomId);
+    const selectedRoom = allRooms.find((room) => room.id === selectedRoomId);
     if (!selectedRoom) {
       addToast("Select a room to continue.", "warning");
       return;
@@ -284,7 +370,7 @@ export default function BoardingDetails() {
                     Listed
                   </div>
                   <div className="text-sm font-semibold text-gray-900 mt-2">
-                    {new Date(listing.created_at).toLocaleDateString()}
+                    {listing.created_at ? new Date(listing.created_at).toLocaleDateString() : "N/A"}
                   </div>
                 </div>
               </div>
@@ -299,15 +385,15 @@ export default function BoardingDetails() {
                 <p className="text-gray-700">{listing.verification_document_name || "Not uploaded yet"}</p>
               </div>
 
-              {listing.rooms?.length ? (
+              {allRooms.length ? (
                 <div className="mt-6 rounded-xl border border-gray-200 p-4">
                   <h3 className="font-semibold text-gray-900 mb-3">Room availability</h3>
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">
-                      Available rooms: {listing.rooms.filter((room) => room.isAvailable).length}
+                      Available rooms: {allRooms.filter((room) => room.isAvailable).length}
                     </div>
                     <div className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
-                      Occupied rooms: {listing.rooms.filter((room) => !room.isAvailable).length}
+                      Occupied rooms: {allRooms.filter((room) => !room.isAvailable).length}
                     </div>
                   </div>
                 </div>
@@ -437,10 +523,10 @@ export default function BoardingDetails() {
               </p>
             </div>
 
-            {listing.rooms?.length ? (
+            {allRooms.length ? (
               <div className="max-h-[60vh] overflow-y-auto pr-1">
                 <div className="grid gap-3 md:grid-cols-2">
-                  {listing.rooms.map((room) => {
+                  {allRooms.map((room) => {
                     const isSelected = selectedRoomId === room.id;
                     return (
                       <button
@@ -452,20 +538,48 @@ export default function BoardingDetails() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-lg font-semibold text-gray-900">Room {room.roomNumber}</p>
-                            <p className="text-sm text-gray-600">{room.type}</p>
+                            <p className="text-sm text-gray-600">
+                              {room.type === "Shared" && room.maxSharing !== undefined
+                                ? `Shared (${room.maxSharing}-person sharing)`
+                                : room.type}
+                              {room.floorNumber !== undefined && ` • Floor ${room.floorNumber}`}
+                            </p>
                           </div>
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${room.isAvailable ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
-                            {room.isAvailable ? "Available" : "Occupied"}
+                            {room.type === "Shared" && room.maxSharing !== undefined && room.slotsTaken !== undefined
+                              ? room.isAvailable
+                                ? `${room.maxSharing - room.slotsTaken} slots left`
+                                : "Full"
+                              : room.isAvailable ? "Available" : "Occupied"}
                           </span>
                         </div>
 
+                        {room.type === "Shared" && room.maxSharing !== undefined && room.slotsTaken !== undefined && (
+                          <div className="mt-3 text-xs text-gray-600">
+                            <div className="flex justify-between mb-1">
+                              <span>Sharing Slots: {room.slotsTaken}/{room.maxSharing} filled</span>
+                              <span className="font-semibold text-blue-700">
+                                {room.maxSharing - room.slotsTaken} left
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                              <div 
+                                className="bg-blue-600 h-1.5 rounded-full" 
+                                style={{ width: `${(room.slotsTaken / room.maxSharing) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        )}
+ 
                         <div className="mt-4 flex items-center justify-between">
                           <p className="text-base font-bold text-gray-900">
                             LKR {room.price.toLocaleString()}
                             <span className="text-sm font-normal text-gray-600"> / month</span>
                           </p>
                           {!room.isAvailable && (
-                            <span className="text-xs font-semibold text-gray-500">Already filled</span>
+                            <span className="text-xs font-semibold text-gray-500">
+                              {room.type === "Shared" ? "All slots filled" : "Already filled"}
+                            </span>
                           )}
                         </div>
                       </button>
@@ -488,7 +602,7 @@ export default function BoardingDetails() {
               </button>
               <button
                 onClick={submitBookingRequest}
-                disabled={!listing.rooms?.length}
+                disabled={!allRooms.length}
                 className="flex-1 rounded-lg bg-gray-900 px-4 py-3 font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
               >
                 Send Booking Request

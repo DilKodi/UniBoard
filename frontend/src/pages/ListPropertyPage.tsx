@@ -5,6 +5,8 @@ import Footer from "../components/Footer";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/ToastProvider";
 import { universities } from "../data/universities";
+import { createListing, uploadDocument } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 
 interface PropertyFormData {
   propertyName: string;
@@ -19,6 +21,7 @@ interface PropertyFormData {
 const ListPropertyPage = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { user } = useAuth();
   const [formData, setFormData] = useState<PropertyFormData>({
     propertyName: "",
     location: "",
@@ -31,7 +34,8 @@ const ListPropertyPage = () => {
 
   const [fileName, setFileName] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
-  const [selectedUniversityName, setSelectedUniversityName] = useState<string>("");
+  const [selectedUniversityName, setSelectedUniversityName] =
+    useState<string>("");
   const [selectedCampus, setSelectedCampus] = useState<string>("");
   const selectedUniversity = universities.find(
     (uni) => uni.name === selectedUniversityName,
@@ -64,6 +68,11 @@ const ListPropertyPage = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!user?.id) {
+      addToast("Please sign in again before submitting a listing", "warning");
+      return;
+    }
+
     // Validate required fields
     if (
       !formData.propertyName ||
@@ -95,27 +104,48 @@ const ListPropertyPage = () => {
       return;
     }
 
-    setSubmitting(true);
+    const submitPayload = {
+      owner_id: user.id,
+      property_name: formData.propertyName,
+      location: formData.location,
+      address: formData.address,
+      nearest_university: formData.nearestUniversity,
+      number_of_floors: Number(formData.numberOfFloors),
+      total_rooms: Number(formData.numberOfRooms),
+    };
 
-    // Simulate API call
-    setTimeout(() => {
-      addToast(
-        "Property listing submitted successfully! Your listing awaits admin review.",
-        "success",
-      );
-      setFormData({
-        propertyName: "",
-        location: "",
-        address: "",
-        nearestUniversity: "",
-        numberOfFloors: "",
-        numberOfRooms: "",
-        verificationDocument: null,
-      });
-      setFileName("");
-      setSubmitting(false);
-      navigate("/owner-dashboard");
-    }, 1500);
+    setSubmitting(true);
+    // First upload the verification document
+    uploadDocument(formData.verificationDocument as File)
+      .then((res) => {
+        const payloadWithDoc = {
+          ...submitPayload,
+          verification_document_url: res.file_url || `/uploads/${res.filename}`,
+        };
+        return createListing(payloadWithDoc);
+      })
+      .then(() => {
+        addToast(
+          "Property listing submitted successfully! Your listing awaits admin review.",
+          "success",
+        );
+        setFormData({
+          propertyName: "",
+          location: "",
+          address: "",
+          nearestUniversity: "",
+          numberOfFloors: "",
+          numberOfRooms: "",
+          verificationDocument: null,
+        });
+        setFileName("");
+        navigate("/owner-dashboard");
+      })
+      .catch((err) => {
+        console.error("Create listing failed", err);
+        addToast(err?.response?.data?.detail || "Failed to submit listing", "error");
+      })
+      .finally(() => setSubmitting(false));
   };
 
   return (
@@ -198,10 +228,14 @@ const ListPropertyPage = () => {
                       setSelectedUniversityName(uniName);
                       setSelectedCampus("");
 
-                      const uni = universities.find((entry) => entry.name === uniName);
+                      const uni = universities.find(
+                        (entry) => entry.name === uniName,
+                      );
                       setFormData((prev) => ({
                         ...prev,
-                        nearestUniversity: uni ? `${uni.name} (${uni.location})` : "",
+                        nearestUniversity: uni
+                          ? `${uni.name} (${uni.location})`
+                          : "",
                       }));
                     }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none bg-white"
@@ -242,9 +276,7 @@ const ListPropertyPage = () => {
                           ))}
                         </>
                       ) : (
-                        <option value="">
-                          No campus/branch available
-                        </option>
+                        <option value="">No campus/branch available</option>
                       )}
                     </select>
                     <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none w-5 h-5" />

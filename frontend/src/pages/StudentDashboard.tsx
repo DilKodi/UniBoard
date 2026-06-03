@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -7,12 +7,13 @@ import {
   Home,
   Building,
 } from "lucide-react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { demoBoardingPlaces } from "../data/demoBoardingPlaces";
+import { fetchListings } from "../services/api";
 import {
   matchesUniversitySearch,
   universitySearchOptions,
@@ -52,12 +53,23 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
+const UNIVERSITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  "University of Moratuwa": { lat: 6.7951, lng: 79.9008 },
+  "University of Colombo": { lat: 6.9020, lng: 79.8612 },
+  "University of Peradeniya": { lat: 7.2548, lng: 80.5987 },
+  "University of Sri Jayewardenepura": { lat: 6.8529, lng: 79.9021 },
+  "Sri Lanka Institute of Information Technology": { lat: 6.9064, lng: 79.9706 },
+};
+
 interface Room {
   id: string;
   roomNumber: string;
   type: string;
   isAvailable: boolean;
   price: number;
+  maxSharing?: number;
+  slotsTaken?: number;
+  floorNumber?: number;
 }
 
 interface BoardingPlace {
@@ -76,6 +88,7 @@ interface BoardingPlace {
   images?: string[];
   description?: string;
   demo?: boolean;
+  gender?: string;
 }
 
 const mockBoardingPlaces: BoardingPlace[] = [
@@ -413,12 +426,24 @@ const mockBoardingPlaces: BoardingPlace[] = [
   ...demoBoardingPlaces,
 ];
 
+function MapViewUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  return null;
+}
+
 export default function StudentDashboard() {
   const navigate = useNavigate();
+  const [boardingPlaces, setBoardingPlaces] = useState<BoardingPlace[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [universityName, setUniversityName] = useState("");
   const [distance, setDistance] = useState("1 km");
   const [priceRange, setPriceRange] = useState("Any");
   const [roomType, setRoomType] = useState("Any");
+  const [gender, setGender] = useState("Any");
   const [filters, setFilters] = useState({
     wifiIncluded: false,
     mealsProvided: false,
@@ -426,20 +451,72 @@ export default function StudentDashboard() {
     security247: false,
   });
 
+  useEffect(() => {
+    const loadListings = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchListings();
+
+        const mapped: BoardingPlace[] = data.map((listing, index) => {
+          const roomPriceList = (listing.rooms ?? []).map((room) => room.price);
+          const minPrice = roomPriceList.length > 0 ? Math.min(...roomPriceList) : 0;
+          const firstRoomType = listing.rooms?.[0]?.type || "Shared";
+          const baseCoords =
+            (listing.latitude != null && listing.longitude != null)
+              ? { lat: listing.latitude, lng: listing.longitude }
+              : UNIVERSITY_COORDINATES[listing.nearest_university] ?? { lat: 7.8731, lng: 80.7718 };
+
+          return {
+            id: listing.id,
+            name: listing.property_name,
+            nearestUniversity: listing.nearest_university,
+            distance: listing.distance_from_university ?? 0,
+            distanceUnit: "km from campus",
+            price: minPrice,
+            rating: listing.rating ?? 0,
+            roomType:
+              firstRoomType === "Single"
+                ? "Single Room"
+                : firstRoomType,
+            amenities: (listing.amenities ?? []).map((a: any) => typeof a === 'string' ? a : a.amenity_name),
+            icon: (index + 1) % 2 === 0 ? "building" : "home",
+            coordinates: baseCoords,
+            rooms: listing.rooms,
+            gender: index % 3 === 0 ? "Male Only" : index % 3 === 1 ? "Female Only" : "Any",
+          };
+        });
+
+        const prefixedMockPlaces = mockBoardingPlaces.map((place, idx) => ({
+          ...place,
+          id: `mock-${place.id}`,
+          gender: idx % 3 === 0 ? "Male Only" : idx % 3 === 1 ? "Female Only" : "Any",
+        }));
+
+        setBoardingPlaces([...prefixedMockPlaces, ...mapped]);
+        setLoadError(null);
+      } catch (error) {
+        console.error("Failed to load database listings", error);
+        const prefixedMockPlaces = mockBoardingPlaces.map((place, idx) => ({
+          ...place,
+          id: `mock-${place.id}`,
+          gender: idx % 3 === 0 ? "Male Only" : idx % 3 === 1 ? "Female Only" : "Any",
+        }));
+        setBoardingPlaces(prefixedMockPlaces);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadListings();
+  }, []);
+
   const handleBoardingClick = (boardingId: string | number) => {
-    const selectedBoarding = mockBoardingPlaces.find(
-      (place) => place.id.toString() === boardingId.toString(),
-    );
-    if (selectedBoarding) {
-      navigate(`/boarding/${boardingId}`, {
-        state: { boarding: selectedBoarding },
-      });
-    }
+    navigate(`/boarding/${boardingId}`);
   };
 
   // Filter logic for search functionality
   const getFilteredResults = () => {
-    return mockBoardingPlaces.filter((place) => {
+    return boardingPlaces.filter((place) => {
       // Filter by university name (exact match)
       if (universityName && !matchesUniversitySearch(universityName, place.nearestUniversity)) {
         return false;
@@ -485,6 +562,14 @@ export default function StudentDashboard() {
         }
       }
 
+      // Filter by gender
+      if (gender !== "Any") {
+        const placeGender = place.gender || "Any";
+        if (placeGender !== "Any" && placeGender !== gender) {
+          return false;
+        }
+      }
+
       // Filter by amenities (quick filters)
       const amenitiesFilter = [
         filters.wifiIncluded && "WiFi",
@@ -507,6 +592,23 @@ export default function StudentDashboard() {
   };
 
   const filteredPlaces = getFilteredResults();
+
+  // Determine map center and zoom dynamically
+  const getMapCenterAndZoom = (): { center: [number, number]; zoom: number } => {
+    if (filteredPlaces.length > 0) {
+      const firstPlace = filteredPlaces[0];
+      return {
+        center: [firstPlace.coordinates.lat, firstPlace.coordinates.lng],
+        zoom: 14,
+      };
+    }
+    return {
+      center: [7.8731, 80.7718],
+      zoom: 8,
+    };
+  };
+
+  const { center: mapCenter, zoom: mapZoom } = getMapCenterAndZoom();
 
   const getIconColor = (index: number) => {
     const colors = [
@@ -626,6 +728,22 @@ export default function StudentDashboard() {
             </select>
           </div>
 
+          {/* Gender */}
+          <div className="w-48">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Gender
+            </label>
+            <select
+              value={gender}
+              onChange={(e) => setGender(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option>Any</option>
+              <option>Male Only</option>
+              <option>Female Only</option>
+            </select>
+          </div>
+
           {/* Search Button */}
           <button className="px-8 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium">
             <Search className="w-5 h-5" />
@@ -645,10 +763,11 @@ export default function StudentDashboard() {
                 Available Boarding Places
               </h2>
               <p className="text-sm text-gray-600 mt-1">
-                {filteredPlaces.length} results found
+                {loading ? "Loading results..." : `${filteredPlaces.length} results found`}
               </p>
             </div>
           </div>
+
 
           {/* Quick Filters */}
           <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
@@ -752,6 +871,17 @@ export default function StudentDashboard() {
                             <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
                               {place.roomType}
                             </span>
+                            {place.gender && (
+                              <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                place.gender === "Male Only"
+                                  ? "bg-indigo-50 text-indigo-700"
+                                  : place.gender === "Female Only"
+                                  ? "bg-pink-50 text-pink-700"
+                                  : "bg-teal-50 text-teal-700"
+                              }`}>
+                                {place.gender}
+                              </span>
+                            )}
                             {place.amenities.map((amenity, i) => (
                               <span
                                 key={i}
@@ -784,7 +914,6 @@ export default function StudentDashboard() {
         {/* Right Side - Map View */}
         <div className="w-1/2 bg-gray-100 border-l border-gray-200 relative">
           <div className="sticky top-0 h-full">
-            {/* Map */}
             <MapContainer
               center={[7.8731, 80.7718]}
               zoom={8}
@@ -795,6 +924,7 @@ export default function StudentDashboard() {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
+              <MapViewUpdater center={mapCenter} zoom={mapZoom} />
               {filteredPlaces.map((place) => (
                 <Marker
                   key={place.id}
@@ -815,6 +945,17 @@ export default function StudentDashboard() {
                       <p className="font-semibold text-sm mt-1">
                         LKR {place.price.toLocaleString()}/month
                       </p>
+                      {place.gender && (
+                        <p className="text-xs font-medium mt-0.5">
+                          Gender: <span className={
+                            place.gender === "Male Only"
+                              ? "text-indigo-600"
+                              : place.gender === "Female Only"
+                              ? "text-pink-600"
+                              : "text-teal-600"
+                          }>{place.gender}</span>
+                        </p>
+                      )}
                       <button
                         onClick={() => handleBoardingClick(place.id)}
                         className="mt-2 w-full bg-blue-600 text-white text-xs py-1 px-2 rounded hover:bg-blue-700"

@@ -68,27 +68,39 @@ export const matchesUniversitySearch = (query: string, placeNearestUniversity: s
     .replace(/\s+/g, " ")
     .trim();
 
-  // Extract base university name from stored placeNearestUniversity
   const baseName = placeNearestUniversity.split(" - ")[0].split(" — ")[0].trim();
   const uni = universities.find((u) => u.name.toLowerCase() === baseName.toLowerCase() || `${u.name} (${u.location})`.toLowerCase() === baseName.toLowerCase());
 
   if (!uni) {
-    // fallback: check any search option contains query
-    return universitySearchOptions.some((opt) => opt.toLowerCase().includes(q));
+    // fallback: check if any part of the query matches the place name
+    const placeLower = placeNearestUniversity.toLowerCase();
+    return placeLower.includes(q) || q.includes(placeLower);
   }
 
-  // Match against university name, location, abbreviations, and campuses
-  if (uni.name.toLowerCase().includes(q) || uni.name.toLowerCase().includes(normalizedQuery)) return true;
-  if (uni.location.toLowerCase().includes(q) || uni.location.toLowerCase().includes(normalizedQuery)) return true;
-  if ((uni.abbreviations ?? []).some((a) => a.toLowerCase().includes(q) || a.toLowerCase().includes(normalizedQuery))) return true;
-  if ((uni.campuses ?? []).some((c) => c.toLowerCase().includes(q) || c.toLowerCase().includes(normalizedQuery))) return true;
+  const uniNameLower = uni.name.toLowerCase();
+  const uniLocationLower = uni.location.toLowerCase();
 
-  // Also check composed display strings
-  const display = `${uni.name} ${uni.location}`.toLowerCase();
-  if (display.includes(q) || display.includes(normalizedQuery)) return true;
+  // 1. Exact or substring match in name (either way)
+  if (uniNameLower.includes(normalizedQuery) || normalizedQuery.includes(uniNameLower)) return true;
 
+  // 2. Exact or substring match in location (either way)
+  if (uniLocationLower.includes(normalizedQuery) || normalizedQuery.includes(uniLocationLower)) return true;
+
+  // 3. Match against abbreviations (either way)
+  if ((uni.abbreviations ?? []).some((abbr) => {
+    const abbrLower = abbr.toLowerCase();
+    return abbrLower.includes(normalizedQuery) || normalizedQuery.includes(abbrLower);
+  })) return true;
+
+  // 4. Match against campuses (either way)
+  if ((uni.campuses ?? []).some((campus) => {
+    const campusLower = campus.toLowerCase();
+    return campusLower.includes(normalizedQuery) || normalizedQuery.includes(campusLower);
+  })) return true;
+
+  // 5. Match composed display/search strings
   const searchKey = `${uni.name} ${uni.location} ${(uni.abbreviations ?? []).join(" ")} ${(uni.campuses ?? []).join(" ")}`.toLowerCase();
-  if (searchKey.includes(normalizedQuery)) return true;
+  if (searchKey.includes(normalizedQuery) || normalizedQuery.includes(uniNameLower)) return true;
 
   return false;
-};
+};

@@ -172,7 +172,7 @@ const LandingPage = () => {
           </p>
           <div className="flex justify-center space-x-4">
             <button
-              onClick={() => navigate("/get-started")}
+              onClick={() => navigate("/login", { state: { role: "student", mode: "signup" } })}
               className="px-8 py-3 bg-white text-blue-700 rounded-lg hover:bg-gray-100 transition font-medium"
             >
               Sign Up as Student
