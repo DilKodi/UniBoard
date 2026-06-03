@@ -81,8 +81,6 @@ services:
       CORS_ORIGINS: "http://localhost:5173,http://localhost:5174,http://localhost:3000"
     depends_on:
       - boarding-db
-    volumes:
-      - boarding_uploads:/app/uploads
 
   boarding-db:
     image: postgres:16-alpine
@@ -188,7 +186,6 @@ volumes:
   auth_data:
   student_data:
   boarding_data:
-  boarding_uploads:
   booking_data:
   review_data:
   notification_data:
