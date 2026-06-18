@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, DateTime
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, DateTime, Float
 from sqlalchemy.orm import relationship
 from .database import Base
 import enum
@@ -66,7 +66,25 @@ class BoardingPlace(Base):
     number_of_rooms = Column(Integer, nullable=False)
     verification_document_name = Column(String, nullable=True)
     rejection_reason = Column(String, nullable=True)
+    gender_restriction = Column(String, nullable=True, default="Any")
     status = Column(Enum(ListingStatus), default=ListingStatus.PENDING, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     owner = relationship("Owner", back_populates="boarding_places")
+    rooms = relationship("Room", back_populates="property", cascade="all, delete-orphan")
+
+
+class Room(Base):
+    __tablename__ = "rooms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("boarding_places.id"), nullable=False)
+    room_number = Column(String, nullable=False)
+    room_type = Column(String, nullable=False)
+    price = Column(Float, nullable=False)
+    floor_number = Column(Integer, default=1)
+    has_attached_bathroom = Column(Boolean, default=False)
+    has_balcony = Column(Boolean, default=False)
+    is_available = Column(Boolean, default=True)
+
+    property = relationship("BoardingPlace", back_populates="rooms")

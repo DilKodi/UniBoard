@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 from .models import UserRole
 from datetime import datetime
 
@@ -46,6 +46,33 @@ class BoardingPlaceCreate(BaseModel):
     number_of_floors: int
     number_of_rooms: int
     verification_document_name: Optional[str] = None
+    gender_restriction: Optional[str] = "Any"
+
+
+class RoomBase(BaseModel):
+    room_number: str
+    room_type: str
+    price: float
+    floor_number: Optional[int] = 1
+    has_attached_bathroom: bool = False
+    has_balcony: bool = False
+
+class RoomCreate(RoomBase):
+    pass
+
+class RoomUpdate(BaseModel):
+    room_number: Optional[str] = None
+    room_type: Optional[str] = None
+    price: Optional[float] = None
+    is_available: Optional[bool] = None
+
+class RoomResponse(RoomBase):
+    id: int
+    property_id: int
+    is_available: bool
+
+    class Config:
+        from_attributes = True
 
 
 class BoardingPlaceResponse(BaseModel):
@@ -60,8 +87,10 @@ class BoardingPlaceResponse(BaseModel):
     number_of_rooms: int
     verification_document_name: Optional[str] = None
     rejection_reason: Optional[str] = None
+    gender_restriction: Optional[str] = None
     status: str
     created_at: datetime
+    rooms: Optional[List[RoomResponse]] = []
 
     class Config:
         from_attributes = True

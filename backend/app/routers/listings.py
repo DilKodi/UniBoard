@@ -40,8 +40,22 @@ def _build_listing_response(listing: models.BoardingPlace, owner_profile: models
         number_of_rooms=listing.number_of_rooms,
         verification_document_name=listing.verification_document_name,
         rejection_reason=listing.rejection_reason,
+        gender_restriction=listing.gender_restriction,
         status=listing.status.value if listing.status else models.ListingStatus.PENDING.value,
         created_at=listing.created_at,
+        rooms=[
+            schemas.RoomResponse(
+                id=r.id,
+                property_id=r.property_id,
+                room_number=r.room_number,
+                room_type=r.room_type,
+                price=r.price,
+                floor_number=r.floor_number,
+                has_attached_bathroom=r.has_attached_bathroom,
+                has_balcony=r.has_balcony,
+                is_available=r.is_available,
+            ) for r in listing.rooms
+        ] if listing.rooms else [],
     )
 
 
@@ -73,6 +87,7 @@ def create_boarding_place(
         number_of_floors=payload.number_of_floors,
         number_of_rooms=payload.number_of_rooms,
         verification_document_name=payload.verification_document_name,
+        gender_restriction=payload.gender_restriction,
     )
 
     db.add(listing)
@@ -84,7 +99,12 @@ def create_boarding_place(
 
 @router.get("", response_model=List[schemas.BoardingPlaceResponse])
 def get_boarding_places(db: Session = Depends(database.get_db)):
-    listings = db.query(models.BoardingPlace).order_by(models.BoardingPlace.created_at.desc()).all()
+    listings = (
+        db.query(models.BoardingPlace)
+        .filter(models.BoardingPlace.status == models.ListingStatus.APPROVED)
+        .order_by(models.BoardingPlace.created_at.desc())
+        .all()
+    )
     owner_ids = [listing.owner_id for listing in listings]
     owner_profiles = db.query(models.Owner).filter(models.Owner.id.in_(owner_ids)).all() if owner_ids else []
     owner_by_id = {owner.id: owner for owner in owner_profiles}

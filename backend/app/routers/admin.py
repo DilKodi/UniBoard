@@ -19,6 +19,7 @@ def _build_listing_response(listing: models.BoardingPlace, owner_profile: models
         number_of_rooms=listing.number_of_rooms,
         verification_document_name=listing.verification_document_name,
         rejection_reason=listing.rejection_reason,
+        gender_restriction=listing.gender_restriction,
         status=listing.status.value if listing.status else models.ListingStatus.PENDING.value,
         created_at=listing.created_at,
     )
