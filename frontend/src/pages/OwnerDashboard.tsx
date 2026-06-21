@@ -10,9 +10,30 @@ import {
   Plus,
   Pencil,
   X,
+  Image as ImageIcon,
+  Trash2,
+  Upload,
+  Loader2,
+  Star,
 } from "lucide-react";
 import { useToast } from "../components/ToastProvider";
-import { fetchMyListings, type BoardingPlaceResponse } from "../services/api";
+import { 
+  fetchMyListings, 
+  fetchRooms, 
+  createRoom, 
+  updateRoom, 
+  toggleRoomStatus as toggleRoomApi, 
+  fetchPropertyVisits, 
+  fetchPropertyBookings, 
+  updateVisitRequestStatus, 
+  updateBookingRequestStatus,
+  fetchListingImages,
+  uploadListingImage,
+  deleteListingImage,
+  fetchPropertyReviews,
+  replyToReview,
+  type BoardingPlaceResponse 
+} from "../services/api";
 
 interface Room {
   id: string;
@@ -33,537 +54,6 @@ interface VisitRequest {
   status: "pending" | "accepted" | "declined";
 }
 
-const mockRooms: Room[] = [
-  {
-    id: "1",
-    name: "Room 101",
-    type: "Single • Near Campus",
-    price: 15000,
-    views: 342,
-    status: "Occupied",
-  },
-  {
-    id: "2",
-    name: "Room 102",
-    type: "Shared • 2 Beds",
-    price: 12000,
-    views: 289,
-    status: "Available",
-  },
-  {
-    id: "3",
-    name: "Room 103",
-    type: "Single • AC Room",
-    price: 18000,
-    views: 521,
-    status: "Occupied",
-  },
-  {
-    id: "4",
-    name: "Room 201",
-    type: "Single • Balcony",
-    price: 16500,
-    views: 198,
-    status: "Available",
-  },
-  {
-    id: "5",
-    name: "Room 202",
-    type: "Shared • 3 beds",
-    price: 10000,
-    views: 267,
-    status: "Available",
-  },
-];
-
-const mockVisitRequests: VisitRequest[] = [
-  {
-    id: "1",
-    studentName: "Aisha Khan",
-    room: "Room 102",
-    requestedDate: "Jan 27, 2025",
-    status: "pending",
-  },
-  {
-    id: "2",
-    studentName: "Rahul Sharma",
-    room: "Room 201",
-    requestedDate: "Jan 23, 2025",
-    status: "pending",
-  },
-  {
-    id: "3",
-    studentName: "Priya Patel",
-    room: "Room 102",
-    requestedDate: "Jan 24, 2025",
-    status: "pending",
-  },
-  {
-    id: "4",
-    studentName: "Amit Singh",
-    room: "Room 202",
-    requestedDate: "Jan 25, 2025",
-    status: "pending",
-  },
-];
-
-const getRoomsForListing = (listingId: number, propertyName: string, numRooms: number, numFloors: number): Room[] => {
-  const finalizeList = (roomsList: Room[]): Room[] => {
-    return roomsList.map(room => {
-      if (room.type.toLowerCase().includes("shared")) {
-        let maxSharing = 2;
-        const typeLower = room.type.toLowerCase();
-        if (typeLower.includes("2 bed") || typeLower.includes("2bed")) maxSharing = 2;
-        else if (typeLower.includes("3 bed") || typeLower.includes("3bed")) maxSharing = 3;
-        else if (typeLower.includes("4 bed") || typeLower.includes("4bed")) maxSharing = 4;
-        
-        const slotsTaken = room.slotsTaken !== undefined 
-          ? room.slotsTaken 
-          : (room.status === "Occupied" ? maxSharing : 1);
-        
-        return {
-          ...room,
-          maxSharing,
-          slotsTaken,
-        };
-      }
-      return room;
-    });
-  };
-
-  // If this is Moratuwa Crest Residences (or ID is 2)
-  if (propertyName.toLowerCase().includes("moratuwa crest") || listingId === 2) {
-    const list: Room[] = [
-      {
-        id: `${listingId}-1`,
-        name: "Room 101",
-        type: "Single • Near Campus",
-        price: 15000,
-        views: 342,
-        status: "Occupied",
-      },
-      {
-        id: `${listingId}-2`,
-        name: "Room 102",
-        type: "Shared • 2 Beds",
-        price: 12000,
-        views: 289,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-3`,
-        name: "Room 103",
-        type: "Single • AC Room",
-        price: 18000,
-        views: 521,
-        status: "Occupied",
-      },
-      {
-        id: `${listingId}-4`,
-        name: "Room 201",
-        type: "Single • Balcony",
-        price: 16500,
-        views: 198,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-5`,
-        name: "Room 202",
-        type: "Shared • 3 beds",
-        price: 10000,
-        views: 267,
-        status: "Available",
-      },
-    ];
-
-    for (let rNum = 6; rNum <= numRooms; rNum++) {
-      const floor = ((rNum - 1) % numFloors) + 1;
-      const roomIdx = Math.floor((rNum - 1) / numFloors) + 1;
-      const roomNumber = `${floor}${String(roomIdx).padStart(2, "0")}`;
-      const isOccupied = (rNum + listingId) % 3 === 0;
-      list.push({
-        id: `${listingId}-${rNum}`,
-        name: `Room ${roomNumber}`,
-        type: rNum % 2 === 0 ? "Shared • 2 Beds" : "Single • Standard",
-        price: 12000 - (rNum % 2 === 0 ? 1000 : 0),
-        views: 100 + (rNum * 47) % 300,
-        status: isOccupied ? "Occupied" : "Available",
-      });
-    }
-    return finalizeList(list);
-  }
-
-  // If this is Lakeview Student Haven (or ID is 3)
-  if (propertyName.toLowerCase().includes("lakeview") || listingId === 3) {
-    const list: Room[] = [
-      {
-        id: `${listingId}-1`,
-        name: "Room 101",
-        type: "Single • Lake View",
-        price: 16000,
-        views: 150,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-2`,
-        name: "Room 102",
-        type: "Shared • 2 Beds",
-        price: 11000,
-        views: 120,
-        status: "Occupied",
-      },
-      {
-        id: `${listingId}-3`,
-        name: "Room 201",
-        type: "Single • AC Room",
-        price: 19000,
-        views: 210,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-4`,
-        name: "Room 202",
-        type: "Single • Balcony",
-        price: 17500,
-        views: 180,
-        status: "Occupied",
-      },
-    ];
-
-    for (let rNum = 5; rNum <= numRooms; rNum++) {
-      const floor = ((rNum - 1) % numFloors) + 1;
-      const roomIdx = Math.floor((rNum - 1) / numFloors) + 1;
-      const roomNumber = `${floor}${String(roomIdx).padStart(2, "0")}`;
-      const isOccupied = (rNum + listingId) % 2 === 0;
-      list.push({
-        id: `${listingId}-${rNum}`,
-        name: `Room ${roomNumber}`,
-        type: rNum % 2 === 0 ? "Shared • 2 Beds" : "Single • Standard",
-        price: 13000,
-        views: 90 + (rNum * 15) % 100,
-        status: isOccupied ? "Occupied" : "Available",
-      });
-    }
-    return finalizeList(list);
-  }
-
-  // If this is Jayewardenepura Comfort Stay (or ID is 9)
-  if (propertyName.toLowerCase().includes("jayewardenepura") || listingId === 9) {
-    const list: Room[] = [
-      {
-        id: `${listingId}-1`,
-        name: "Room 101",
-        type: "Single • Attached Bath",
-        price: 14000,
-        views: 95,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-2`,
-        name: "Room 102",
-        type: "Shared • 3 Beds",
-        price: 9500,
-        views: 85,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-3`,
-        name: "Room 201",
-        type: "Single • Near Uni",
-        price: 15500,
-        views: 110,
-        status: "Occupied",
-      },
-    ];
-
-    for (let rNum = 4; rNum <= numRooms; rNum++) {
-      const floor = ((rNum - 1) % numFloors) + 1;
-      const roomIdx = Math.floor((rNum - 1) / numFloors) + 1;
-      const roomNumber = `${floor}${String(roomIdx).padStart(2, "0")}`;
-      const isOccupied = (rNum + listingId) % 2 === 0;
-      list.push({
-        id: `${listingId}-${rNum}`,
-        name: `Room ${roomNumber}`,
-        type: "Single • Standard",
-        price: 12000,
-        views: 50 + (rNum * 10) % 80,
-        status: isOccupied ? "Occupied" : "Available",
-      });
-    }
-    return finalizeList(list);
-  }
-
-  // If this is Devi Boarding House (or ID is 17)
-  if (propertyName.toLowerCase().includes("devi") || listingId === 17) {
-    const list: Room[] = [
-      {
-        id: `${listingId}-1`,
-        name: "Room 101",
-        type: "Single • Standard",
-        price: 13000,
-        views: 310,
-        status: "Occupied",
-      },
-      {
-        id: `${listingId}-2`,
-        name: "Room 102",
-        type: "Shared • 2 Beds",
-        price: 10500,
-        views: 240,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-3`,
-        name: "Room 201",
-        type: "Single • Spacious",
-        price: 14500,
-        views: 195,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-4`,
-        name: "Room 301",
-        type: "Single • Balcony",
-        price: 16000,
-        views: 150,
-        status: "Occupied",
-      },
-      {
-        id: `${listingId}-5`,
-        name: "Room 401",
-        type: "Studio Room",
-        price: 22000,
-        views: 420,
-        status: "Available",
-      },
-    ];
-
-    for (let rNum = 6; rNum <= numRooms; rNum++) {
-      const floor = ((rNum - 1) % numFloors) + 1;
-      const roomIdx = Math.floor((rNum - 1) / numFloors) + 1;
-      const roomNumber = `${floor}${String(roomIdx).padStart(2, "0")}`;
-      const isOccupied = (rNum + listingId) % 2 === 0;
-      list.push({
-        id: `${listingId}-${rNum}`,
-        name: `Room ${roomNumber}`,
-        type: "Single • Standard",
-        price: 13500,
-        views: 110 + (rNum * 20) % 150,
-        status: isOccupied ? "Occupied" : "Available",
-      });
-    }
-    return finalizeList(list);
-  }
-
-  // If this is Sewana Boarding Home (or ID is 18)
-  if (propertyName.toLowerCase().includes("sewana") || listingId === 18) {
-    const list: Room[] = [
-      {
-        id: `${listingId}-1`,
-        name: "Room 101",
-        type: "Single • Economy",
-        price: 11000,
-        views: 80,
-        status: "Available",
-      },
-      {
-        id: `${listingId}-2`,
-        name: "Room 102",
-        type: "Shared • 2 Beds",
-        price: 9000,
-        views: 65,
-        status: "Occupied",
-      },
-      {
-        id: `${listingId}-3`,
-        name: "Room 103",
-        type: "Single • Garden View",
-        price: 12500,
-        views: 115,
-        status: "Available",
-      },
-    ];
-
-    for (let rNum = 4; rNum <= numRooms; rNum++) {
-      const floor = ((rNum - 1) % numFloors) + 1;
-      const roomIdx = Math.floor((rNum - 1) / numFloors) + 1;
-      const roomNumber = `${floor}${String(roomIdx).padStart(2, "0")}`;
-      const isOccupied = (rNum + listingId) % 2 === 0;
-      list.push({
-        id: `${listingId}-${rNum}`,
-        name: `Room ${roomNumber}`,
-        type: "Single • Economy",
-        price: 11500,
-        views: 70 + (rNum * 12) % 60,
-        status: isOccupied ? "Occupied" : "Available",
-      });
-    }
-    return finalizeList(list);
-  }
-
-  // Generic fallback
-  const rooms: Room[] = [];
-  const basePrice = 12000 + (listingId % 5) * 2000;
-  for (let rNum = 1; rNum <= numRooms; rNum++) {
-    const floor = ((rNum - 1) % numFloors) + 1;
-    const roomIdx = Math.floor((rNum - 1) / numFloors) + 1;
-    const roomNumber = `${floor}${String(roomIdx).padStart(2, "0")}`;
-    const isOccupied = (rNum + listingId) % 3 === 0;
-    rooms.push({
-      id: `${listingId}-${rNum}`,
-      name: `Room ${roomNumber}`,
-      type: rNum % 2 === 0 ? "Shared Room" : "Single Room",
-      price: basePrice - (rNum % 2 === 0 ? 2000 : 0),
-      views: 100 + (rNum * 47) % 300,
-      status: isOccupied ? "Occupied" : "Available",
-    });
-  }
-  return finalizeList(rooms);
-};
-
-const getVisitRequestsForListing = (listingId: number, rooms: Room[]): VisitRequest[] => {
-  // If this is Moratuwa Crest Residences (or ID is 2)
-  if (listingId === 2) {
-    return [
-      {
-        id: `req-${listingId}-1`,
-        studentName: "Aisha Khan",
-        room: "Room 102",
-        requestedDate: "Jan 27, 2025",
-        status: "pending",
-      },
-      {
-        id: `req-${listingId}-2`,
-        studentName: "Rahul Sharma",
-        room: "Room 201",
-        requestedDate: "Jan 23, 2025",
-        status: "pending",
-      },
-      {
-        id: `req-${listingId}-3`,
-        studentName: "Priya Patel",
-        room: "Room 102",
-        requestedDate: "Jan 24, 2025",
-        status: "pending",
-      },
-      {
-        id: `req-${listingId}-4`,
-        studentName: "Amit Singh",
-        room: "Room 202",
-        requestedDate: "Jan 25, 2025",
-        status: "pending",
-      },
-    ];
-  }
-
-  // If this is Lakeview Student Haven (or ID is 3)
-  if (listingId === 3) {
-    return [
-      {
-        id: `req-${listingId}-1`,
-        studentName: "Sajith Perera",
-        room: "Room 101",
-        requestedDate: "Jan 26, 2025",
-        status: "pending",
-      },
-      {
-        id: `req-${listingId}-2`,
-        studentName: "Nisansala Silva",
-        room: "Room 201",
-        requestedDate: "Jan 28, 2025",
-        status: "pending",
-      },
-    ];
-  }
-
-  // If this is Jayewardenepura Comfort Stay (or ID is 9)
-  if (listingId === 9) {
-    return [
-      {
-        id: `req-${listingId}-1`,
-        studentName: "Dilani Wijesinghe",
-        room: "Room 101",
-        requestedDate: "Jan 24, 2025",
-        status: "pending",
-      },
-      {
-        id: `req-${listingId}-2`,
-        studentName: "Kasun Fernando",
-        room: "Room 102",
-        requestedDate: "Jan 25, 2025",
-        status: "pending",
-      },
-    ];
-  }
-
-  // If this is Devi Boarding House (or ID is 17)
-  if (listingId === 17) {
-    return [
-      {
-        id: `req-${listingId}-1`,
-        studentName: "Amit Singh",
-        room: "Room 102",
-        requestedDate: "Jan 23, 2025",
-        status: "pending",
-      },
-      {
-        id: `req-${listingId}-2`,
-        studentName: "Aisha Khan",
-        room: "Room 201",
-        requestedDate: "Jan 25, 2025",
-        status: "pending",
-      },
-      {
-        id: `req-${listingId}-3`,
-        studentName: "Rahul Sharma",
-        room: "Room 401",
-        requestedDate: "Jan 27, 2025",
-        status: "pending",
-      },
-    ];
-  }
-
-  // If this is Sewana Boarding Home (or ID is 18)
-  if (listingId === 18) {
-    return [
-      {
-        id: `req-${listingId}-1`,
-        studentName: "Priya Patel",
-        room: "Room 101",
-        requestedDate: "Jan 22, 2025",
-        status: "pending",
-      },
-      {
-        id: `req-${listingId}-2`,
-        studentName: "Kasun Fernando",
-        room: "Room 103",
-        requestedDate: "Jan 24, 2025",
-        status: "pending",
-      },
-    ];
-  }
-
-  const requests: VisitRequest[] = [];
-  const availableRooms = rooms.filter(r => r.status === "Available");
-  const studentNames = [
-    "Aisha Khan", "Rahul Sharma", "Priya Patel", "Amit Singh", 
-    "Sajith Perera", "Dilani Wijesinghe", "Kasun Fernando", "Nisansala Silva"
-  ];
-  
-  availableRooms.slice(0, 3).forEach((room, index) => {
-    const studentIdx = (listingId + index) % studentNames.length;
-    requests.push({
-      id: `req-${listingId}-${index}`,
-      studentName: studentNames[studentIdx],
-      room: room.name,
-      requestedDate: `Jan ${20 + (index * 3) % 10}, 2026`,
-      status: "pending",
-    });
-  });
-  
-  return requests;
-};
-
 interface BookingRequest {
   id: string;
   studentName: string;
@@ -572,71 +62,89 @@ interface BookingRequest {
   status: "pending" | "accepted" | "declined";
 }
 
-const getBookingRequestsForListing = (listingId: number, rooms: Room[]): BookingRequest[] => {
-  // If this is Moratuwa Crest Residences (or ID is 2)
-  if (listingId === 2) {
-    return [
-      {
-        id: `book-${listingId}-1`,
-        studentName: "Kasun Fernando",
-        room: "Room 102",
-        requestedDate: "Jan 28, 2025",
-        status: "pending",
-      },
-      {
-        id: `book-${listingId}-2`,
-        studentName: "Nisansala Silva",
-        room: "Room 201",
-        requestedDate: "Jan 29, 2025",
-        status: "pending",
-      },
-    ];
-  }
-
-  // If this is Lakeview Student Haven (or ID is 3)
-  if (listingId === 3) {
-    return [
-      {
-        id: `book-${listingId}-1`,
-        studentName: "Aisha Khan",
-        room: "Room 101",
-        requestedDate: "Jan 27, 2025",
-        status: "pending",
-      },
-    ];
-  }
-
-  const requests: BookingRequest[] = [];
-  const availableRooms = rooms.filter(r => r.status === "Available");
-  const studentNames = ["Sajith Perera", "Dilani Wijesinghe", "Kasun Fernando", "Nisansala Silva"];
-  if (availableRooms.length > 0) {
-    requests.push({
-      id: `book-${listingId}-1`,
-      studentName: studentNames[listingId % studentNames.length],
-      room: availableRooms[0].name,
-      requestedDate: `Jan 28, 2025`,
-      status: "pending",
-    });
-  }
-  return requests;
-};
-
 export default function OwnerDashboard() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [listings, setListings] = useState<BoardingPlaceResponse[]>([]);
   const [selectedListingId, setSelectedListingId] = useState<number | null>(null);
-  const [roomsStore, setRoomsStore] = useState<Record<number, Room[]>>({});
-  const [requestsStore, setRequestsStore] = useState<Record<number, VisitRequest[]>>({});
-  const [bookingRequestsStore, setBookingRequestsStore] = useState<Record<number, BookingRequest[]>>({});
-  
+
+
   const [rooms, setRooms] = useState<Room[]>([]);
   const [visitRequests, setVisitRequests] = useState<VisitRequest[]>([]);
   const [bookingRequests, setBookingRequests] = useState<BookingRequest[]>([]);
-  const [activeTab, setActiveTab] = useState<"visit" | "booking">("visit");
+  const [activeTab, setActiveTab] = useState<"visit" | "booking" | "reviews">("visit");
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [replyTextStore, setReplyTextStore] = useState<Record<number, string>>({});
+  const [submittingReplies, setSubmittingReplies] = useState<Record<number, boolean>>({});
   const [showAddRoomModal, setShowAddRoomModal] = useState(false);
   const [showEditRoomModal, setShowEditRoomModal] = useState(false);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+
+  // R2 Image Management State
+  const [showManageImagesModal, setShowManageImagesModal] = useState(false);
+  const [listingImages, setListingImages] = useState<{ id: number; url: string; key: string }[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const openManageImages = async () => {
+    if (selectedListingId === null) return;
+    setShowManageImagesModal(true);
+    await loadListingImages(selectedListingId);
+  };
+
+  const loadListingImages = async (listingId: number) => {
+    setLoadingImages(true);
+    try {
+      const data = await fetchListingImages(listingId);
+      setListingImages(data);
+    } catch (err) {
+      console.error("Failed to load listing images", err);
+      addToast("Failed to load property photos.", "error");
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
+  const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || selectedListingId === null) return;
+
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) {
+      addToast("Only JPEG, PNG, and WebP images are allowed.", "warning");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      addToast("File size must be under 5MB.", "warning");
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      await uploadListingImage(selectedListingId, file);
+      addToast("Image uploaded successfully!", "success");
+      await loadListingImages(selectedListingId);
+    } catch (err: any) {
+      console.error("Failed to upload image", err);
+      addToast(err?.response?.data?.detail || "Failed to upload image.", "error");
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteImage = async (imageId: number) => {
+    if (selectedListingId === null) return;
+    try {
+      await deleteListingImage(selectedListingId, imageId);
+      addToast("Image deleted successfully!", "success");
+      await loadListingImages(selectedListingId);
+    } catch (err: any) {
+      console.error("Failed to delete image", err);
+      addToast(err?.response?.data?.detail || "Failed to delete image.", "error");
+    }
+  };
   const [newRoomForm, setNewRoomForm] = useState({
     name: "",
     type: "Single",
@@ -653,6 +161,87 @@ export default function OwnerDashboard() {
     maxSharing: "2",
     slotsTaken: "0",
   });
+
+  const refreshDashboardData = async (listingId: number) => {
+    try {
+      // Fetch rooms
+      let dbRooms = await fetchRooms(listingId);
+
+      if (dbRooms.length === 0) {
+        const currentListing = listings.find((l) => l.id === listingId);
+        if (currentListing && currentListing.number_of_rooms > 0) {
+          const numFloors = currentListing.number_of_floors || 1;
+          const promises = [];
+          for (let rNum = 1; rNum <= currentListing.number_of_rooms; rNum++) {
+            const floor = ((rNum - 1) % numFloors) + 1;
+            const roomIdx = Math.floor((rNum - 1) / numFloors) + 1;
+            const roomNumber = `${floor}${String(roomIdx).padStart(2, "0")}`;
+            promises.push(
+              createRoom(listingId, {
+                room_number: roomNumber,
+                room_type: "Single",
+                price: 12000,
+                floor_number: floor,
+                has_attached_bathroom: false,
+                has_balcony: false,
+              })
+            );
+          }
+          try {
+            await Promise.all(promises);
+            // Re-fetch rooms from database
+            dbRooms = await fetchRooms(listingId);
+          } catch (createErr) {
+            console.error("Failed to auto-populate rooms", createErr);
+          }
+        }
+      }
+
+      const mappedRooms: Room[] = dbRooms.map((r: any) => ({
+        id: r.id.toString(),
+        name: `Room ${r.room_number}`,
+        type: r.room_type,
+        price: r.price,
+        views: 0,
+        status: r.is_available ? "Available" : "Occupied",
+        maxSharing: r.max_sharing !== undefined && r.max_sharing !== null ? r.max_sharing : (r.room_type === "Shared" ? 2 : 1),
+        slotsTaken: r.slots_taken !== undefined && r.slots_taken !== null ? r.slots_taken : (r.is_available ? 0 : 1),
+      }));
+      setRooms(mappedRooms);
+
+      // Fetch visits
+      const dbVisits = await fetchPropertyVisits(listingId);
+      const mappedVisits: VisitRequest[] = dbVisits.map((v: any) => ({
+        id: v.id.toString(),
+        studentName: v.student_name,
+        room: v.room_name || "Any Room",
+        requestedDate: v.requested_date,
+        status: v.status
+      }));
+      setVisitRequests(mappedVisits);
+
+      // Fetch bookings
+      const dbBookings = await fetchPropertyBookings(listingId);
+      const mappedBookings: BookingRequest[] = dbBookings.map((b: any) => ({
+        id: b.id.toString(),
+        studentName: b.student_name,
+        room: b.room_name,
+        requestedDate: b.requested_date,
+        status: b.status
+      }));
+      setBookingRequests(mappedBookings);
+
+      // Fetch reviews
+      try {
+        const reviewsData = await fetchPropertyReviews(listingId);
+        setReviews(reviewsData);
+      } catch (revErr) {
+        console.warn("Failed to load reviews for dashboard", revErr);
+      }
+    } catch (err) {
+      console.error("Failed to load dashboard data for property", err);
+    }
+  };
 
   useEffect(() => {
     const loadListings = async () => {
@@ -676,34 +265,11 @@ export default function OwnerDashboard() {
   }, [listings, selectedListingId]);
 
   useEffect(() => {
-    if (selectedListingId === null) return;
-
-    if (!roomsStore[selectedListingId]) {
-      const listing = listings.find((l) => l.id === selectedListingId);
-      if (listing) {
-        const generatedRooms = getRoomsForListing(
-          listing.id,
-          listing.property_name,
-          listing.number_of_rooms,
-          listing.number_of_floors
-        );
-        const generatedRequests = getVisitRequestsForListing(listing.id, generatedRooms);
-        const generatedBookings = getBookingRequestsForListing(listing.id, generatedRooms);
-
-        setRoomsStore((prev) => ({ ...prev, [selectedListingId]: generatedRooms }));
-        setRequestsStore((prev) => ({ ...prev, [selectedListingId]: generatedRequests }));
-        setBookingRequestsStore((prev) => ({ ...prev, [selectedListingId]: generatedBookings }));
-        setRooms(generatedRooms);
-        setVisitRequests(generatedRequests);
-        setBookingRequests(generatedBookings);
-      }
-    } else {
-      setRooms(roomsStore[selectedListingId]);
-      setVisitRequests(requestsStore[selectedListingId]);
-      setBookingRequests(bookingRequestsStore[selectedListingId] || []);
+    if (selectedListingId !== null) {
+      refreshDashboardData(selectedListingId);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedListingId, listings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedListingId]);
 
   const totalViews = rooms.reduce((sum, room) => sum + room.views, 0);
   const activeBookings = rooms.filter(
@@ -718,133 +284,116 @@ export default function OwnerDashboard() {
     (req) => req.status === "pending",
   ).length;
 
-  const toggleRoomStatus = (roomId: string) => {
-    const updated = rooms.map((room) => {
-      if (room.id === roomId) {
-        const isOccupied = room.status === "Occupied";
-        const newStatus = isOccupied ? "Available" : "Occupied";
-        const isShared = room.type.toLowerCase().includes("shared");
-        
-        return {
-          ...room,
-          status: newStatus as "Occupied" | "Available",
-          slotsTaken: isShared && room.maxSharing !== undefined
-            ? (newStatus === "Occupied" ? room.maxSharing : 0)
-            : room.slotsTaken,
-        };
+  const toggleRoomStatus = async (roomId: string) => {
+    const targetRoom = rooms.find((r) => r.id === roomId);
+    if (!targetRoom) return;
+    try {
+      const nextAvailable = targetRoom.status === "Occupied";
+      await toggleRoomApi(roomId, nextAvailable);
+      if (selectedListingId !== null) {
+        await refreshDashboardData(selectedListingId);
       }
-      return room;
-    });
-    setRooms(updated);
-    if (selectedListingId !== null) {
-      setRoomsStore(prev => ({ ...prev, [selectedListingId]: updated }));
+      addToast("Room availability toggled successfully!", "success");
+    } catch (err) {
+      console.error("Failed to toggle room status", err);
+      addToast("Failed to toggle room status.", "error");
     }
   };
 
-  const handleVisitRequest = (
+  const handleVisitRequest = async (
     requestId: string,
     action: "accept" | "decline",
   ) => {
-    const updated = visitRequests.map((req) =>
-      req.id === requestId
-        ? { ...req, status: action === "accept" ? "accepted" : "declined" }
-        : req,
-    );
-    setVisitRequests(updated);
-    if (selectedListingId !== null) {
-      setRequestsStore(prev => ({ ...prev, [selectedListingId]: updated }));
+    try {
+      await updateVisitRequestStatus(requestId, action === "accept" ? "accepted" : "declined");
+      if (selectedListingId !== null) {
+        await refreshDashboardData(selectedListingId);
+      }
+      addToast(`Visit request ${action}ed!`, "success");
+    } catch (err) {
+      console.error("Failed to handle visit request", err);
+      addToast("Failed to update visit request.", "error");
     }
   };
 
-  const handleBookingRequest = (
+  const handleBookingRequest = async (
     requestId: string,
     action: "accept" | "decline",
   ) => {
-    const updated = bookingRequests.map((req) =>
-      req.id === requestId
-        ? { ...req, status: action === "accept" ? "accepted" : "declined" }
-        : req,
-    );
-    setBookingRequests(updated);
-    if (selectedListingId !== null) {
-      setBookingRequestsStore(prev => ({ ...prev, [selectedListingId]: updated }));
-    }
-
-    if (action === "accept") {
-      const targetRequest = bookingRequests.find(r => r.id === requestId);
-      if (targetRequest) {
-        const updatedRooms = rooms.map(room => {
-          if (room.name === targetRequest.room) {
-            const isShared = room.type.toLowerCase().includes("shared");
-            if (isShared && room.maxSharing !== undefined) {
-              const newSlots = Math.min(room.maxSharing, (room.slotsTaken ?? 0) + 1);
-              return {
-                ...room,
-                slotsTaken: newSlots,
-                status: newSlots === room.maxSharing ? ("Occupied" as const) : ("Available" as const),
-              };
-            } else {
-              return { ...room, status: "Occupied" as const };
-            }
+    try {
+      await updateBookingRequestStatus(requestId, action === "accept" ? "accepted" : "declined");
+      
+      if (action === "accept") {
+        const targetReq = bookingRequests.find((r) => r.id === requestId);
+        if (targetReq) {
+          const roomToUpdate = rooms.find((rm) => rm.name === targetReq.room);
+          if (roomToUpdate) {
+            await toggleRoomApi(roomToUpdate.id, false);
           }
-          return room;
-        });
-        setRooms(updatedRooms);
-        if (selectedListingId !== null) {
-          setRoomsStore(prev => ({ ...prev, [selectedListingId]: updatedRooms }));
         }
-        addToast(`Booking accepted! Room status updated.`, "success");
       }
-    } else {
-      addToast(`Booking request declined.`, "info");
+
+      if (selectedListingId !== null) {
+        await refreshDashboardData(selectedListingId);
+      }
+      addToast(`Booking request ${action}ed!`, "success");
+    } catch (err) {
+      console.error("Failed to handle booking request", err);
+      addToast("Failed to update booking request.", "error");
     }
   };
 
-  const handleAddRoom = () => {
-    if (!newRoomForm.name || !newRoomForm.price) {
+  const handleSubmitReply = async (reviewId: number) => {
+    const text = replyTextStore[reviewId]?.trim();
+    if (!text) {
+      addToast("Reply text cannot be empty.", "warning");
+      return;
+    }
+
+    setSubmittingReplies((prev) => ({ ...prev, [reviewId]: true }));
+    try {
+      await replyToReview(reviewId, text);
+      addToast("Reply submitted successfully!", "success");
+      setReplyTextStore((prev) => ({ ...prev, [reviewId]: "" }));
+      if (selectedListingId !== null) {
+        await refreshDashboardData(selectedListingId);
+      }
+    } catch (err: any) {
+      console.error("Failed to submit reply", err);
+      const msg = err.response?.data?.detail || "Failed to submit reply.";
+      addToast(msg, "error");
+    } finally {
+      setSubmittingReplies((prev) => ({ ...prev, [reviewId]: false }));
+    }
+  };
+
+  const handleAddRoom = async () => {
+    if (!newRoomForm.name || !newRoomForm.price || selectedListingId === null) {
       addToast("Please fill in all required fields", "warning");
       return;
     }
 
-    const isShared = newRoomForm.type === "Shared";
-    const max = isShared ? parseInt(newRoomForm.maxSharing) || 2 : undefined;
-    const taken = isShared ? parseInt(newRoomForm.slotsTaken) || 0 : undefined;
+    const cleanRoomNum = newRoomForm.name.replace(/room\s*/i, "").trim();
 
-    if (isShared && max !== undefined && taken !== undefined) {
-      if (taken > max) {
-        addToast("Beds filled cannot exceed total beds capacity", "warning");
-        return;
-      }
+    try {
+      await createRoom(selectedListingId, {
+        room_number: cleanRoomNum,
+        room_type: newRoomForm.type,
+        price: parseInt(newRoomForm.price),
+        floor_number: 1,
+        has_attached_bathroom: false,
+        has_balcony: false,
+        max_sharing: newRoomForm.type === "Shared" ? parseInt(newRoomForm.maxSharing) : 1,
+        slots_taken: newRoomForm.type === "Shared" ? parseInt(newRoomForm.slotsTaken) : 0
+      });
+      await refreshDashboardData(selectedListingId);
+      setNewRoomForm({ name: "", type: "Single", price: "", description: "", maxSharing: "2", slotsTaken: "0" });
+      setShowAddRoomModal(false);
+      addToast("Room added successfully!", "success");
+    } catch (err) {
+      console.error("Failed to add room", err);
+      addToast("Failed to add room.", "error");
     }
-
-    const nextRoomId = rooms.length > 0
-      ? (Math.max(...rooms.map((r) => {
-          const parts = r.id.split("-");
-          const lastPart = parts[parts.length - 1];
-          const val = parseInt(lastPart);
-          return isNaN(val) ? 0 : val;
-        })) + 1).toString()
-      : "1";
-
-    const newRoom: Room = {
-      id: selectedListingId !== null ? `${selectedListingId}-${nextRoomId}` : nextRoomId,
-      name: newRoomForm.name,
-      type: isShared ? `Shared • ${max} Beds` : newRoomForm.type,
-      price: parseInt(newRoomForm.price),
-      views: 0,
-      status: isShared ? (taken === max ? "Occupied" : "Available") : "Available",
-      maxSharing: max,
-      slotsTaken: taken,
-    };
-
-    const updatedRooms = [...rooms, newRoom];
-    setRooms(updatedRooms);
-    if (selectedListingId !== null) {
-      setRoomsStore(prev => ({ ...prev, [selectedListingId]: updatedRooms }));
-    }
-    setNewRoomForm({ name: "", type: "Single", price: "", description: "", maxSharing: "2", slotsTaken: "0" });
-    setShowAddRoomModal(false);
-    addToast("Room added successfully!", "success");
   };
 
   const openEditModal = (room: Room) => {
@@ -868,50 +417,31 @@ export default function OwnerDashboard() {
     setShowEditRoomModal(true);
   };
 
-  const handleEditRoom = () => {
-    if (!editRoomForm.name || !editRoomForm.price) {
+  const handleEditRoom = async () => {
+    if (!editRoomForm.name || !editRoomForm.price || !selectedRoomId || selectedListingId === null) {
       addToast("Please fill in all required fields", "warning");
       return;
     }
 
-    const isShared = editRoomForm.type === "Shared";
-    const max = isShared ? parseInt(editRoomForm.maxSharing) || 2 : undefined;
-    const taken = isShared ? parseInt(editRoomForm.slotsTaken) || 0 : undefined;
+    const cleanRoomNum = editRoomForm.name.replace(/room\s*/i, "").trim();
 
-    if (isShared && max !== undefined && taken !== undefined) {
-      if (taken > max) {
-        addToast("Beds filled cannot exceed total beds capacity", "warning");
-        return;
-      }
+    try {
+      await updateRoom(selectedRoomId, {
+        room_number: cleanRoomNum,
+        room_type: editRoomForm.type,
+        price: parseInt(editRoomForm.price),
+        max_sharing: editRoomForm.type === "Shared" ? parseInt(editRoomForm.maxSharing) : 1,
+        slots_taken: editRoomForm.type === "Shared" ? parseInt(editRoomForm.slotsTaken) : 0
+      });
+      await refreshDashboardData(selectedListingId);
+      setEditRoomForm({ name: "", type: "Single", price: "", description: "", maxSharing: "2", slotsTaken: "0" });
+      setSelectedRoomId(null);
+      setShowEditRoomModal(false);
+      addToast("Room updated successfully!", "success");
+    } catch (err) {
+      console.error("Failed to edit room", err);
+      addToast("Failed to update room.", "error");
     }
-
-    const updated = rooms.map((room) => {
-      if (room.id === selectedRoomId) {
-        const newStatus = isShared
-          ? (taken === max ? "Occupied" : "Available")
-          : room.status;
-
-        return {
-          ...room,
-          name: editRoomForm.name,
-          type: isShared ? `Shared • ${max} Beds` : editRoomForm.type,
-          price: parseInt(editRoomForm.price),
-          maxSharing: max,
-          slotsTaken: taken,
-          status: newStatus as "Occupied" | "Available",
-        };
-      }
-      return room;
-    });
-    setRooms(updated);
-    if (selectedListingId !== null) {
-      setRoomsStore(prev => ({ ...prev, [selectedListingId]: updated }));
-    }
-
-    setEditRoomForm({ name: "", type: "Single", price: "", description: "", maxSharing: "2", slotsTaken: "0" });
-    setSelectedRoomId(null);
-    setShowEditRoomModal(false);
-    addToast("Room updated successfully!", "success");
   };
 
   return (
@@ -955,24 +485,22 @@ export default function OwnerDashboard() {
                 <button
                   key={listing.id}
                   onClick={() => setSelectedListingId(listing.id)}
-                  className={`text-left rounded-lg border p-4 transition ${
-                    selectedListingId === listing.id
+                  className={`text-left rounded-lg border p-4 transition ${selectedListingId === listing.id
                       ? "border-blue-500 bg-blue-50/70 shadow-sm"
                       : "border-gray-200 hover:border-blue-300 hover:bg-blue-50"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-semibold text-gray-900">{listing.property_name}</h3>
                       <p className="text-sm text-gray-600 mt-1">{listing.location}</p>
                     </div>
-                    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
-                      (!listing.status || listing.status.toLowerCase() === 'pending')
+                    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${(!listing.status || listing.status.toLowerCase() === 'pending')
                         ? 'bg-orange-50 text-orange-700 border-orange-200'
                         : (listing.status.toLowerCase() === 'verified' || listing.status.toLowerCase() === 'approved')
-                        ? 'bg-green-50 text-green-700 border-green-200'
-                        : 'bg-gray-100 text-gray-700 border-transparent'
-                    }`}>
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : 'bg-gray-100 text-gray-700 border-transparent'
+                      }`}>
                       {listing.status ? listing.status.toLowerCase() : 'pending'}
                     </span>
                   </div>
@@ -1046,17 +574,26 @@ export default function OwnerDashboard() {
                     <h2 className="text-xl font-bold text-gray-900">
                       Boarding Rooms
                     </h2>
-                    <button
-                      onClick={() => setShowAddRoomModal(true)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Room
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={openManageImages}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition flex items-center gap-2 text-sm font-medium"
+                      >
+                        <ImageIcon className="w-4 h-4 text-gray-500" />
+                        Manage Photos
+                      </button>
+                      <button
+                        onClick={() => setShowAddRoomModal(true)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm font-medium"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Room
+                      </button>
+                    </div>
                   </div>
 
                   {/* Table Header */}
-                  <div className="px-6 py-3 bg-gray-50 grid grid-cols-5 gap-4 text-sm font-medium text-gray-600">
+                  <div className="px-6 py-3 bg-gray-50 grid grid-cols-6 gap-4 text-sm font-medium text-gray-600">
                     <div className="col-span-2">Room Details</div>
                     <div>Price</div>
                     <div>Views</div>
@@ -1069,7 +606,7 @@ export default function OwnerDashboard() {
                     {rooms.map((room) => (
                       <div
                         key={room.id}
-                        className="px-6 py-4 grid grid-cols-5 gap-4 items-center hover:bg-gray-50 transition"
+                        className="px-6 py-4 grid grid-cols-6 gap-4 items-center hover:bg-gray-50 transition"
                       >
                         <div className="col-span-2 flex items-center gap-4">
                           <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
@@ -1099,18 +636,16 @@ export default function OwnerDashboard() {
                         <div>
                           <button
                             onClick={() => toggleRoomStatus(room.id)}
-                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${
-                              room.status === "Occupied"
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition ${room.status === "Occupied"
                                 ? "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                 : "bg-green-50 text-green-700 hover:bg-green-100"
-                            }`}
+                              }`}
                           >
                             <div
-                              className={`w-2 h-2 rounded-full ${
-                                room.status === "Occupied"
+                              className={`w-2 h-2 rounded-full ${room.status === "Occupied"
                                   ? "bg-gray-600"
                                   : "bg-green-600"
-                              }`}
+                                }`}
                             ></div>
                             {room.status}
                           </button>
@@ -1136,23 +671,30 @@ export default function OwnerDashboard() {
                   <div className="flex border-b border-gray-200 bg-gray-50">
                     <button
                       onClick={() => setActiveTab("visit")}
-                      className={`flex-1 py-3 text-center font-semibold text-sm transition-all border-b-2 ${
-                        activeTab === "visit"
+                      className={`flex-1 py-3 text-center font-semibold text-sm transition-all border-b-2 ${activeTab === "visit"
                           ? "border-blue-600 text-blue-600 bg-white"
                           : "border-transparent text-gray-500 hover:text-gray-700"
-                      }`}
+                        }`}
                     >
                       Visits ({visitRequests.filter(r => r.status === "pending").length})
                     </button>
                     <button
                       onClick={() => setActiveTab("booking")}
-                      className={`flex-1 py-3 text-center font-semibold text-sm transition-all border-b-2 ${
-                        activeTab === "booking"
+                      className={`flex-1 py-3 text-center font-semibold text-sm transition-all border-b-2 ${activeTab === "booking"
                           ? "border-blue-600 text-blue-600 bg-white"
                           : "border-transparent text-gray-500 hover:text-gray-700"
-                      }`}
+                        }`}
                     >
                       Bookings ({bookingRequests.filter(r => r.status === "pending").length})
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("reviews")}
+                      className={`flex-1 py-3 text-center font-semibold text-sm transition-all border-b-2 ${activeTab === "reviews"
+                          ? "border-blue-600 text-blue-600 bg-white"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
+                        }`}
+                    >
+                      Reviews ({reviews.length})
                     </button>
                   </div>
 
@@ -1200,7 +742,7 @@ export default function OwnerDashboard() {
                             </div>
                           </div>
                         ))
-                    ) : (
+                    ) : activeTab === "booking" ? (
                       bookingRequests
                         .filter((req) => req.status === "pending")
                         .map((request) => (
@@ -1243,6 +785,88 @@ export default function OwnerDashboard() {
                             </div>
                           </div>
                         ))
+                    ) : (
+                      reviews.map((review) => (
+                        <div key={review.id} className="p-4 border-b last:border-b-0 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="font-semibold text-gray-900 text-sm">
+                                {review.reviewer_role === "owner" ? "Verified Owner" : "Verified Student"}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                By: {review.reviewer_name || "Anonymous"} ({review.reviewer_email || "N/A"})
+                              </p>
+                              <div className="flex text-yellow-500 my-1">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star
+                                    key={star}
+                                    className={`w-3.5 h-3.5 ${star <= review.rating ? "fill-current" : "text-gray-300"}`}
+                                  />
+                                ))}
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {new Date(review.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          {review.comment && (
+                            <p className="text-gray-700 text-xs italic leading-relaxed">{review.comment}</p>
+                          )}
+
+                          {review.media && review.media.length > 0 && (
+                            <div className="flex gap-1.5 flex-wrap">
+                              {review.media.map((med: any) => (
+                                <a
+                                  key={med.id}
+                                  href={med.public_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="h-10 w-10 overflow-hidden rounded border border-gray-200"
+                                >
+                                  {med.mime_type.startsWith("image/") ? (
+                                    <img
+                                      src={med.public_url}
+                                      alt="Attachment"
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="h-full w-full bg-gray-900 flex items-center justify-center text-white text-[8px]">
+                                      Video
+                                    </div>
+                                  )}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+
+                          {review.reply ? (
+                            <div className="bg-blue-50 border-l-2 border-blue-500 p-2.5 rounded-r text-xs space-y-0.5">
+                              <p className="font-semibold text-blue-900">Your reply:</p>
+                              <p className="text-blue-950">{review.reply.reply}</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <textarea
+                                value={replyTextStore[review.id] || ""}
+                                onChange={(e) =>
+                                  setReplyTextStore((prev) => ({ ...prev, [review.id]: e.target.value }))
+                                }
+                                placeholder="Write a response..."
+                                rows={2}
+                                className="w-full rounded border border-gray-300 px-2 py-1.5 text-xs focus:border-blue-500 focus:outline-none"
+                              />
+                              <button
+                                onClick={() => handleSubmitReply(review.id)}
+                                disabled={submittingReplies[review.id] || !(replyTextStore[review.id]?.trim())}
+                                className="w-full py-1.5 px-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded text-xs font-semibold transition"
+                              >
+                                {submittingReplies[review.id] ? "Submitting..." : "Submit Response"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))
                     )}
 
                     {activeTab === "visit" && visitRequests.filter((req) => req.status === "pending").length === 0 && (
@@ -1259,6 +883,15 @@ export default function OwnerDashboard() {
                         <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                         <p className="text-gray-500 text-sm">
                           No pending booking requests
+                        </p>
+                      </div>
+                    )}
+
+                    {activeTab === "reviews" && reviews.length === 0 && (
+                      <div className="p-8 text-center">
+                        <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-500 text-sm">
+                          No reviews left for this property yet.
                         </p>
                       </div>
                     )}
@@ -1441,6 +1074,8 @@ export default function OwnerDashboard() {
                     type: "Single",
                     price: "",
                     description: "",
+                    maxSharing: "2",
+                    slotsTaken: "0",
                   });
                 }}
                 className="text-gray-500 hover:text-gray-700"
@@ -1565,6 +1200,8 @@ export default function OwnerDashboard() {
                     type: "Single",
                     price: "",
                     description: "",
+                    maxSharing: "2",
+                    slotsTaken: "0",
                   });
                 }}
                 className="flex-1 py-2.5 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium"
@@ -1576,6 +1213,102 @@ export default function OwnerDashboard() {
                 className="flex-1 py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Images Modal */}
+      {showManageImagesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full p-6 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between mb-6 border-b pb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Manage Property Photos</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Upload photos of your boarding place. JPEG, PNG, and WebP are allowed (Max 5MB).
+                </p>
+              </div>
+              <button
+                onClick={() => setShowManageImagesModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Images Grid */}
+            <div className="flex-1 overflow-y-auto mb-6">
+              {loadingImages ? (
+                <div className="flex flex-col items-center justify-center py-20 text-gray-500 gap-3">
+                  <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                  <span>Loading photos...</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {/* Upload Card */}
+                  <label className="border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center p-6 cursor-pointer hover:border-blue-500 hover:bg-blue-50/50 transition h-40 relative">
+                    {uploadingImage ? (
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                        <span className="text-xs text-gray-500">Uploading...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                        <span className="text-sm font-semibold text-gray-900">Add Photo</span>
+                        <span className="text-xs text-gray-500 mt-1">Click to browse</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp"
+                      onChange={handleUploadImage}
+                      disabled={uploadingImage}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {/* Existing Images */}
+                  {listingImages.map((image) => (
+                    <div
+                      key={image.id}
+                      className="group relative rounded-xl overflow-hidden bg-gray-100 border border-gray-200 h-40 shadow-sm"
+                    >
+                      <img
+                        src={image.url}
+                        alt="Property photo"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                        <button
+                          onClick={() => handleDeleteImage(image.id)}
+                          className="p-3 bg-red-600 text-white rounded-full hover:bg-red-700 transition shadow-md hover:scale-105"
+                          title="Delete photo"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!loadingImages && listingImages.length === 0 && (
+                <div className="text-center py-12 border rounded-xl bg-gray-50 mt-4">
+                  <ImageIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">No photos uploaded yet. Click above to add some!</p>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t pt-4 flex justify-end">
+              <button
+                onClick={() => setShowManageImagesModal(false)}
+                className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition font-medium"
+              >
+                Close
               </button>
             </div>
           </div>

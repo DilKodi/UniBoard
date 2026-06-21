@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { updateStudentProfile, uploadProfilePicture } from "../services/api";
 import {
   Camera,
   Mail,
@@ -13,24 +14,44 @@ import {
 } from "lucide-react";
 
 export default function StudentProfile() {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState<string>("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   const [formData, setFormData] = useState({
-    fullName: "John Doe",
-    email: user?.email || "",
-    phone: "+94 77 123 4567",
-    university: "University of Colombo",
-    studentId: "2021/CS/001",
-    address: "123 Main Street, Colombo 07",
-    yearOfStudy: "3rd Year",
-    major: "Computer Science",
+    fullName: "",
+    email: "",
+    phone: "",
+    university: "",
+    studentId: "",
+    address: "",
+    yearOfStudy: "",
+    major: "",
   });
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        fullName: user.student_profile?.full_name || "John Doe",
+        email: user.email || "",
+        phone: user.student_profile?.phone_number || "",
+        university: user.student_profile?.university || "",
+        studentId: user.student_profile?.student_id || "",
+        address: user.student_profile?.address || "",
+        yearOfStudy: user.student_profile?.year_of_study || "",
+        major: user.student_profile?.major || "",
+      });
+      if (user.student_profile?.profile_image_url) {
+        setProfileImage(user.student_profile.profile_image_url);
+      }
+    }
+  }, [user]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfileImage(reader.result as string);
@@ -46,11 +67,50 @@ export default function StudentProfile() {
     });
   };
 
-  const handleSave = () => {
-    // Save profile data to backend
-    console.log("Saving profile:", formData);
+  const handleSave = async () => {
+    try {
+      let finalImageUrl = profileImage;
+      if (imageFile) {
+        const uploadRes = await uploadProfilePicture(imageFile);
+        finalImageUrl = uploadRes.url;
+      }
+
+      await updateStudentProfile({
+        full_name: formData.fullName,
+        phone_number: formData.phone,
+        university: formData.university,
+        student_id: formData.studentId,
+        address: formData.address,
+        year_of_study: formData.yearOfStudy,
+        major: formData.major,
+        profile_image_url: finalImageUrl,
+      });
+      setImageFile(null);
+      await login(); // refresh auth user context
+      setIsEditing(false);
+      alert("Profile updated successfully!");
+    } catch (error) {
+      console.error("Failed to update profile", error);
+      alert("Failed to save profile. Please try again.");
+    }
+  };
+
+  const handleCancel = () => {
     setIsEditing(false);
-    alert("Profile updated successfully!");
+    setImageFile(null);
+    setProfileImage(user?.student_profile?.profile_image_url || "");
+    if (user) {
+      setFormData({
+        fullName: user.student_profile?.full_name || "John Doe",
+        email: user.email || "",
+        phone: user.student_profile?.phone_number || "",
+        university: user.student_profile?.university || "",
+        studentId: user.student_profile?.student_id || "",
+        address: user.student_profile?.address || "",
+        yearOfStudy: user.student_profile?.year_of_study || "",
+        major: user.student_profile?.major || "",
+      });
+    }
   };
 
   return (
@@ -115,7 +175,7 @@ export default function StudentProfile() {
               ) : (
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setIsEditing(false)}
+                    onClick={handleCancel}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
                   >
                     Cancel

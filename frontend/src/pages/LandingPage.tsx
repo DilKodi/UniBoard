@@ -1,12 +1,28 @@
+import { useEffect } from "react";
 import { Check, Shield, Users, Filter } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Footer from "../components/Footer";
 import Navbar from "../components/Navbar";
 import { useAuth } from "../contexts/AuthContext";
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { hash } = useLocation();
   const { isAuthenticated, user, loading } = useAuth();
+
+  useEffect(() => {
+    if (hash) {
+      const element = document.getElementById(hash.substring(1));
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({
+            behavior: "smooth",
+            block: hash === "#get-started" ? "center" : "start",
+          });
+        }, 100);
+      }
+    }
+  }, [hash]);
 
   const handleListYourPropertyClick = () => {
     if (loading) return;
@@ -106,7 +122,7 @@ const LandingPage = () => {
       </section>
 
       {/* Why Choose UniBoard Section */}
-      <section className="bg-white py-20">
+      <section id="about" className="bg-white py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -159,7 +175,7 @@ const LandingPage = () => {
       </section>
 
       {/* Call to Action Section */}
-      <section className="bg-blue-700 py-20">
+      <section id="get-started" className="bg-blue-700 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl font-bold text-white mb-4">
             Ready to Find Your Home Away From Home?
@@ -172,10 +188,10 @@ const LandingPage = () => {
           </p>
           <div className="flex justify-center space-x-4">
             <button
-              onClick={() => navigate("/login", { state: { role: "student", mode: "signup" } })}
+              onClick={() => navigate("/student-dashboard")}
               className="px-8 py-3 bg-white text-blue-700 rounded-lg hover:bg-gray-100 transition font-medium"
             >
-              Sign Up as Student
+              Browse Listings
             </button>
             <button
               onClick={handleListYourPropertyClick}

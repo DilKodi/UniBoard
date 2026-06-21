@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import List, Optional
 from .. import models, schemas, database
+from ..storage import upload_file
 
 router = APIRouter(prefix="/boardings", tags=["Boarding Properties"])
 
@@ -25,6 +26,28 @@ def _save_upload(file: UploadFile) -> tuple[str, str]:
     return safe_name, f"/uploads/{safe_name}"
 
 
+import httpx
+
+def _send_notification(user_id: int, title: str, message: str, type_str: str, action_url: str):
+    try:
+        payload = {
+            "user_id": user_id,
+            "title": title,
+            "message": message,
+            "type": type_str,
+            "action_url": action_url
+        }
+        for url in ["http://notification-service:8006/notifications", "http://localhost:8006/notifications"]:
+            try:
+                resp = httpx.post(url, json=payload, timeout=2.0)
+                if resp.status_code == 201:
+                    break
+            except Exception:
+                continue
+    except Exception as e:
+        print(f"Failed to send notification: {e}")
+
+
 def _serialize_property(property: models.BoardingProperty) -> dict:
         verification_document_name = None
         if property.verification_document_url:
@@ -41,9 +64,14 @@ def _serialize_property(property: models.BoardingProperty) -> dict:
                 "number_of_floors": property.number_of_floors,
                 "number_of_rooms": property.total_rooms,
                 "verification_document_name": verification_document_name,
+                "verification_document_url": property.verification_document_url,
                 "rejection_reason": None,
                 "status": property.status.value if property.status else models.PropertyStatus.PENDING.value,
                 "created_at": property.created_at,
+                "description": property.description,
+                "images": property.images,
+                "gender_restriction": property.gender_restriction,
+                "price_range": property.price_range,
         }
 
 
@@ -52,9 +80,18 @@ async def upload_verification_document(file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="File name is required")
 
-    safe_name, file_url = _save_upload(file)
+    import io
+    contents = await file.read()
+    ext = file.filename.split(".")[-1].lower() if "." in file.filename else "pdf"
+    key = f"verification_documents/{uuid4()}.{ext}"
+
+    try:
+        file_url = upload_file(io.BytesIO(contents), key, file.content_type or "application/pdf")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upload verification document to Cloudflare R2: {str(e)}")
+
     return {
-        "filename": safe_name,
+        "filename": key,
         "original_filename": file.filename,
         "file_url": file_url,
     }
@@ -81,6 +118,16 @@ def approve_listing(listing_id: int, db: Session = Depends(database.get_db)):
     listing.is_verified = True
     db.commit()
     db.refresh(listing)
+
+    # Notify owner
+    _send_notification(
+        user_id=listing.owner_id,
+        title="Property Approved 🎉",
+        message=f"Your property '{listing.property_name}' has been approved by the admin.",
+        type_str="property_approved",
+        action_url="/owner-dashboard"
+    )
+
     return _serialize_property(listing)
 
 
@@ -91,6 +138,30 @@ def reject_listing(listing_id: int, payload: schemas.RejectListingRequest, db: S
         raise HTTPException(status_code=404, detail="Listing not found")
 
     listing.status = models.PropertyStatus.REJECTED
+    listing.is_verified = False
+    db.commit()
+    db.refresh(listing)
+
+    # Notify owner
+    reason_str = f" Reason: {payload.rejection_reason}" if payload.rejection_reason else ""
+    _send_notification(
+        user_id=listing.owner_id,
+        title="Property Rejected ❌",
+        message=f"Your property '{listing.property_name}' was rejected by the admin.{reason_str}",
+        type_str="property_rejected",
+        action_url="/owner-dashboard"
+    )
+
+    return _serialize_property(listing)
+
+
+@router.post("/admin/listings/{listing_id}/reset")
+def reset_listing(listing_id: int, db: Session = Depends(database.get_db)):
+    listing = db.query(models.BoardingProperty).filter(models.BoardingProperty.id == listing_id).first()
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    listing.status = models.PropertyStatus.PENDING
     listing.is_verified = False
     db.commit()
     db.refresh(listing)
@@ -115,6 +186,10 @@ def create_property(
         latitude=property_data.latitude,
         longitude=property_data.longitude,
         verification_document_url=property_data.verification_document_url,
+        description=property_data.description,
+        images=property_data.images,
+        gender_restriction=property_data.gender_restriction or "Any",
+        price_range=property_data.price_range,
         status=models.PropertyStatus.PENDING,
         is_verified=False,
     )
@@ -147,7 +222,9 @@ def list_properties(
     db: Session = Depends(database.get_db)
 ):
     """List all boarding properties with optional filters"""
-    query = db.query(models.BoardingProperty)
+    query = db.query(models.BoardingProperty).filter(
+        models.BoardingProperty.status == models.PropertyStatus.VERIFIED
+    )
     
     # Apply filters
     if university:
@@ -180,8 +257,8 @@ def get_property(property_id: int, db: Session = Depends(database.get_db)):
         models.BoardingProperty.id == property_id
     ).first()
     
-    if not property:
-        raise HTTPException(status_code=404, detail="Property not found")
+    if not property or property.status != models.PropertyStatus.VERIFIED:
+        raise HTTPException(status_code=404, detail="Property not found or not approved")
     
     # Increment views (handle None for legacy records)
     property.views_count = (property.views_count or 0) + 1

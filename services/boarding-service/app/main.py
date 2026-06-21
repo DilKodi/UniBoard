@@ -3,11 +3,20 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import time
+from sqlalchemy.exc import OperationalError
 from .database import engine, Base
-from .routes import boardings, rooms
+from .routes import boardings, rooms, images
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Create database tables with retry logic
+for attempt in range(30):
+    try:
+        Base.metadata.create_all(bind=engine)
+        break
+    except OperationalError:
+        if attempt == 29:
+            raise
+        time.sleep(2)
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -33,3 +42,4 @@ def health_check():
 
 app.include_router(boardings.router)
 app.include_router(rooms.router)
+app.include_router(images.router)

@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, Text, DateTime, Enum as SQLEnum
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Float, Text, DateTime, Enum as SQLEnum, BigInteger
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -8,6 +8,7 @@ class RoomType(str, enum.Enum):
     SINGLE = "Single"
     SHARED = "Shared"
     STUDIO = "Studio"
+    DOUBLE = "Double"
 
 class PropertyStatus(str, enum.Enum):
     PENDING = "pending"
@@ -41,6 +42,12 @@ class BoardingProperty(Base):
     is_verified = Column(Boolean, default=False)
     verification_document_url = Column(String)
     
+    # Extra Details (SRS / UI Integration)
+    description = Column(Text, nullable=True)
+    images = Column(String, nullable=True)  # comma separated list of image paths/URLs
+    gender_restriction = Column(String, default="Any")
+    price_range = Column(String, nullable=True)
+    
     # Ratings and stats
     rating = Column(Float, default=0.0)
     total_reviews = Column(Integer, default=0)
@@ -53,6 +60,7 @@ class BoardingProperty(Base):
     # Relationships
     rooms = relationship("Room", back_populates="property", cascade="all, delete-orphan")
     amenities = relationship("PropertyAmenity", back_populates="property", cascade="all, delete-orphan")
+    images_list = relationship("BoardingImage", back_populates="property", cascade="all, delete-orphan")
 
 class Room(Base):
     __tablename__ = "rooms"
@@ -68,6 +76,8 @@ class Room(Base):
     floor_number = Column(Integer)
     has_attached_bathroom = Column(Boolean, default=False)
     has_balcony = Column(Boolean, default=False)
+    max_sharing = Column(Integer, default=1)
+    slots_taken = Column(Integer, default=0)
     
     # Availability
     is_available = Column(Boolean, default=True)
@@ -88,3 +98,17 @@ class PropertyAmenity(Base):
     
     # Relationships
     property = relationship("BoardingProperty", back_populates="amenities")
+
+class BoardingImage(Base):
+    __tablename__ = "boarding_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("boarding_properties.id", ondelete="CASCADE"), nullable=False)
+    file_key = Column(Text, nullable=False)
+    public_url = Column(Text, nullable=False)
+    mime_type = Column(String)
+    size_bytes = Column(BigInteger)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    property = relationship("BoardingProperty", back_populates="images_list")

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import { updateOwnerProfile, uploadProfilePicture } from "../services/api";
 import {
   Camera,
   Mail,
@@ -13,23 +14,42 @@ import {
 } from "lucide-react";
 
 export default function OwnerProfile() {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [profileImage, setProfileImage] = useState<string>("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   const [formData, setFormData] = useState({
-    fullName: "Boarding Owner",
-    email: user?.email || "",
-    phone: "+94 77 000 0000",
-    nicNumber: "123456789V",
-    propertyBusinessName: "Uni Stay Residences",
-    officeAddress: "No. 10, Galle Road, Colombo 04",
-    preferredContactTime: "09:00 AM - 06:00 PM",
+    fullName: "",
+    email: "",
+    phone: "",
+    nicNumber: "",
+    propertyBusinessName: "",
+    officeAddress: "",
+    preferredContactTime: "",
   });
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        fullName: user.owner_profile?.full_name || "Boarding Owner",
+        email: user.email || "",
+        phone: user.owner_profile?.contact_number || "",
+        nicNumber: user.owner_profile?.nic_number || "",
+        propertyBusinessName: user.owner_profile?.property_business_name || "",
+        officeAddress: user.owner_profile?.office_address || "",
+        preferredContactTime: user.owner_profile?.preferred_contact_time || "",
+      });
+      if (user.owner_profile?.profile_image_url) {
+        setProfileImage(user.owner_profile.profile_image_url);
+      }
+    }
+  }, [user]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setProfileImage(reader.result as string);
@@ -45,11 +65,47 @@ export default function OwnerProfile() {
     });
   };
 
-  const handleSave = () => {
-    // Persist owner profile fields when profile APIs are available.
-    console.log("Saving owner profile:", formData);
+  const handleSave = async () => {
+    try {
+      let finalImageUrl = profileImage;
+      if (imageFile) {
+        const uploadRes = await uploadProfilePicture(imageFile);
+        finalImageUrl = uploadRes.url;
+      }
+
+      await updateOwnerProfile({
+        full_name: formData.fullName,
+        contact_number: formData.phone,
+        office_address: formData.officeAddress,
+        preferred_contact_time: formData.preferredContactTime,
+        property_business_name: formData.propertyBusinessName,
+        profile_image_url: finalImageUrl,
+      });
+      setImageFile(null);
+      await login(); // refresh auth user context
+      setIsEditing(false);
+      alert("Owner profile updated successfully!");
+    } catch (error) {
+      console.error("Failed to update owner profile", error);
+      alert("Failed to save profile. Please try again.");
+    }
+  };
+
+  const handleCancel = () => {
     setIsEditing(false);
-    alert("Owner profile updated successfully!");
+    setImageFile(null);
+    setProfileImage(user?.owner_profile?.profile_image_url || "");
+    if (user) {
+      setFormData({
+        fullName: user.owner_profile?.full_name || "Boarding Owner",
+        email: user.email || "",
+        phone: user.owner_profile?.contact_number || "",
+        nicNumber: user.owner_profile?.nic_number || "",
+        propertyBusinessName: user.owner_profile?.property_business_name || "",
+        officeAddress: user.owner_profile?.office_address || "",
+        preferredContactTime: user.owner_profile?.preferred_contact_time || "",
+      });
+    }
   };
 
   return (
@@ -108,7 +164,7 @@ export default function OwnerProfile() {
               ) : (
                 <div className="flex gap-3">
                   <button
-                    onClick={() => setIsEditing(false)}
+                    onClick={handleCancel}
                     className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition"
                   >
                     Cancel

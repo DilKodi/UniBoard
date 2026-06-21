@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Search, Filter, MapPin, Home, Layers3, Clock3 } from "lucide-react";
 import Footer from "../components/Footer";
 import { fetchListings, type BoardingPlaceResponse } from "../services/api";
-import { demoBoardingPlaces } from "../data/demoBoardingPlaces";
 
 const ListingsPage = () => {
   const navigate = useNavigate();
@@ -17,11 +16,10 @@ const ListingsPage = () => {
       try {
         setLoading(true);
         const data = await fetchListings();
-        setListings([...demoBoardingPlaces, ...data]);
+        setListings(data);
       } catch (err) {
         console.error("Failed to load listings", err);
-        setListings([...demoBoardingPlaces]);
-        setError(null);
+        setError("Failed to fetch listings from database.");
       } finally {
         setLoading(false);
       }

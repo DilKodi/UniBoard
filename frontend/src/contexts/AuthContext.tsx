@@ -3,9 +3,30 @@ import React, {
   useState,
   useContext,
   useEffect,
-  ReactNode,
 } from "react";
+import type { ReactNode } from "react";
 import { fetchUserProfile } from "../services/api";
+
+interface StudentProfile {
+  full_name: string;
+  university?: string | null;
+  phone_number?: string | null;
+  student_id?: string | null;
+  address?: string | null;
+  year_of_study?: string | null;
+  major?: string | null;
+  profile_image_url?: string | null;
+}
+
+interface OwnerProfile {
+  full_name: string;
+  nic_number?: string | null;
+  contact_number?: string | null;
+  office_address?: string | null;
+  preferred_contact_time?: string | null;
+  property_business_name?: string | null;
+  profile_image_url?: string | null;
+}
 
 interface User {
   id: number;
@@ -13,6 +34,8 @@ interface User {
   role: "student" | "owner" | "admin";
   is_active: boolean;
   is_verified: boolean;
+  student_profile?: StudentProfile | null;
+  owner_profile?: OwnerProfile | null;
 }
 
 interface AuthContextType {
@@ -70,11 +93,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const signup = async (
-    email: string,
-    password: string,
-    role: string,
-    fullName: string,
-    additionalData?: any,
+    _email: string,
+    _password: string,
+    _role: string,
+    _fullName: string,
+    _additionalData?: any,
   ) => {
     // Signup logic will be handled in the AuthPage
     setUser(null);

@@ -12,9 +12,12 @@ export interface BoardingPlaceResponse {
   number_of_rooms: number
   total_rooms?: number
   verification_document_name?: string | null
+  verification_document_url?: string | null
   rejection_reason?: string | null
+  gender_restriction?: string | null
   status: string
   created_at: string
+  price_range?: string | null
 }
 
 export interface OwnerProfileResponse {
@@ -122,6 +125,23 @@ export const rejectListing = async (id: number, rejectionReason?: string) => {
 export const resetListing = async (id: number) => {
   const response = await adminApi.post<any>(`/admin/listings/${id}/reset`)
   return mapListing(response.data)
+}
+
+export const fetchListings = async () => {
+  const response = await adminApi.get<any[]>('/listings')
+  return response.data.map(mapListing)
+}
+
+export const fetchPropertyReviews = async (propertyId: number, includeHidden: boolean = false) => {
+  const response = await adminApi.get(`/reviews/property/${propertyId}`, {
+    params: { include_hidden: includeHidden }
+  })
+  return response.data
+}
+
+export const toggleReviewVisibility = async (reviewId: number) => {
+  const response = await adminApi.patch(`/reviews/${reviewId}/visibility`)
+  return response.data
 }
 
 export default adminApi

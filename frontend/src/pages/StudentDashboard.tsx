@@ -12,11 +12,11 @@ import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { demoBoardingPlaces } from "../data/demoBoardingPlaces";
 import { fetchListings } from "../services/api";
 import {
   matchesUniversitySearch,
   universitySearchOptions,
+  UNIVERSITY_COORDINATES,
 } from "../data/universities";
 
 // Fix Leaflet default marker icon issue with React
@@ -53,14 +53,6 @@ const blueIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-const UNIVERSITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
-  "University of Moratuwa": { lat: 6.7951, lng: 79.9008 },
-  "University of Colombo": { lat: 6.9020, lng: 79.8612 },
-  "University of Peradeniya": { lat: 7.2548, lng: 80.5987 },
-  "University of Sri Jayewardenepura": { lat: 6.8529, lng: 79.9021 },
-  "Sri Lanka Institute of Information Technology": { lat: 6.9064, lng: 79.9706 },
-};
-
 interface Room {
   id: string;
   roomNumber: string;
@@ -89,342 +81,8 @@ interface BoardingPlace {
   description?: string;
   demo?: boolean;
   gender?: string;
+  priceRange?: string;
 }
-
-const mockBoardingPlaces: BoardingPlace[] = [
-  {
-    id: "1",
-    name: "Sunrise Student Lodge",
-    nearestUniversity: "University of Moratuwa",
-    distance: 0.5,
-    distanceUnit: "km from campus",
-    price: 9000,
-    rating: 4.8,
-    roomType: "Single Room",
-    amenities: ["WiFi", "Security"],
-    icon: "home",
-    coordinates: { lat: 6.7964, lng: 79.9006 },
-    rooms: [
-      {
-        id: "r1",
-        roomNumber: "101",
-        type: "Single",
-        isAvailable: true,
-        price: 9000,
-      },
-      {
-        id: "r2",
-        roomNumber: "102",
-        type: "Single",
-        isAvailable: false,
-        price: 9000,
-      },
-      {
-        id: "r3",
-        roomNumber: "103",
-        type: "Single",
-        isAvailable: true,
-        price: 9000,
-      },
-    ],
-  },
-  {
-    id: "2",
-    name: "Campus View Hostel",
-    nearestUniversity: "University of Colombo",
-    distance: 1.5,
-    distanceUnit: "km from campus",
-    price: 12000,
-    rating: 4.6,
-    roomType: "Shared",
-    amenities: ["Meals", "WiFi"],
-    icon: "building",
-    coordinates: { lat: 6.902, lng: 79.8608 },
-    rooms: [
-      {
-        id: "r4",
-        roomNumber: "201",
-        type: "Shared",
-        isAvailable: true,
-        price: 12000,
-      },
-      {
-        id: "r5",
-        roomNumber: "202",
-        type: "Shared",
-        isAvailable: true,
-        price: 12000,
-      },
-      {
-        id: "r6",
-        roomNumber: "203",
-        type: "Shared",
-        isAvailable: false,
-        price: 12000,
-      },
-    ],
-  },
-  {
-    id: "3",
-    name: "Elite Student Residence",
-    nearestUniversity: "University of Moratuwa",
-    distance: 3,
-    distanceUnit: "km from campus",
-    price: 18000,
-    rating: 4.9,
-    roomType: "Studio",
-    amenities: ["Gym", "WiFi", "Security"],
-    icon: "building2",
-    coordinates: { lat: 6.795, lng: 79.9 },
-    rooms: [
-      {
-        id: "r7",
-        roomNumber: "301",
-        type: "Studio",
-        isAvailable: false,
-        price: 18000,
-      },
-      {
-        id: "r8",
-        roomNumber: "302",
-        type: "Studio",
-        isAvailable: true,
-        price: 18000,
-      },
-      {
-        id: "r9",
-        roomNumber: "303",
-        type: "Studio",
-        isAvailable: true,
-        price: 18000,
-      },
-    ],
-  },
-  {
-    id: "4",
-    name: "Scholar's Den",
-    nearestUniversity: "University of Peradeniya",
-    distance: 0.8,
-    distanceUnit: "km from campus",
-    price: 7500,
-    rating: 4.7,
-    roomType: "Single Room",
-    amenities: ["WiFi", "Security"],
-    icon: "home2",
-    coordinates: { lat: 7.2579, lng: 80.5975 },
-    rooms: [
-      {
-        id: "r10",
-        roomNumber: "401",
-        type: "Single",
-        isAvailable: true,
-        price: 7500,
-      },
-      {
-        id: "r11",
-        roomNumber: "402",
-        type: "Single",
-        isAvailable: true,
-        price: 7500,
-      },
-    ],
-  },
-  {
-    id: "5",
-    name: "Comfort Student Home",
-    nearestUniversity: "University of Colombo",
-    distance: 4.5,
-    distanceUnit: "km from campus",
-    price: 14000,
-    rating: 4.5,
-    roomType: "Shared",
-    amenities: ["Meals", "Gym", "Security"],
-    icon: "home",
-    coordinates: { lat: 6.903, lng: 79.862 },
-    rooms: [
-      {
-        id: "r12",
-        roomNumber: "501",
-        type: "Shared",
-        isAvailable: true,
-        price: 14000,
-      },
-      {
-        id: "r13",
-        roomNumber: "502",
-        type: "Shared",
-        isAvailable: false,
-        price: 14000,
-      },
-      {
-        id: "r14",
-        roomNumber: "503",
-        type: "Shared",
-        isAvailable: true,
-        price: 14000,
-      },
-      {
-        id: "r15",
-        roomNumber: "504",
-        type: "Shared",
-        isAvailable: false,
-        price: 14000,
-      },
-    ],
-  },
-  {
-    id: "6",
-    name: "Academic Plaza",
-    nearestUniversity: "University of Kelaniya",
-    distance: 2.5,
-    distanceUnit: "km from campus",
-    price: 21000,
-    rating: 4.8,
-    roomType: "Studio",
-    amenities: ["WiFi", "Gym", "Security"],
-    icon: "building",
-    coordinates: { lat: 6.955, lng: 79.91 },
-    rooms: [
-      {
-        id: "r16",
-        roomNumber: "601",
-        type: "Studio",
-        isAvailable: true,
-        price: 21000,
-      },
-      {
-        id: "r17",
-        roomNumber: "602",
-        type: "Studio",
-        isAvailable: true,
-        price: 21000,
-      },
-      {
-        id: "r18",
-        roomNumber: "603",
-        type: "Studio",
-        isAvailable: false,
-        price: 21000,
-      },
-    ],
-  },
-  {
-    id: "7",
-    name: "J'pura Residence",
-    nearestUniversity: "University of Sri Jayewardenepura",
-    distance: 1.2,
-    distanceUnit: "km from campus",
-    price: 13500,
-    rating: 4.4,
-    roomType: "Shared",
-    amenities: ["Meals", "WiFi", "Security"],
-    icon: "home",
-    coordinates: { lat: 6.8766, lng: 79.9217 },
-    rooms: [
-      {
-        id: "r19",
-        roomNumber: "701",
-        type: "Shared",
-        isAvailable: true,
-        price: 13500,
-      },
-      {
-        id: "r20",
-        roomNumber: "702",
-        type: "Shared",
-        isAvailable: true,
-        price: 13500,
-      },
-      {
-        id: "r21",
-        roomNumber: "703",
-        type: "Shared",
-        isAvailable: false,
-        price: 13500,
-      },
-    ],
-  },
-  {
-    id: "8",
-    name: "Moratuwa Budget Stay",
-    nearestUniversity: "University of Moratuwa",
-    distance: 0.7,
-    distanceUnit: "km from campus",
-    price: 8500,
-    rating: 4.3,
-    roomType: "Shared",
-    amenities: ["WiFi", "Security"],
-    icon: "home",
-    coordinates: { lat: 6.797, lng: 79.901 },
-    rooms: [
-      {
-        id: "r22",
-        roomNumber: "801",
-        type: "Shared",
-        isAvailable: true,
-        price: 8500,
-      },
-      {
-        id: "r23",
-        roomNumber: "802",
-        type: "Shared",
-        isAvailable: true,
-        price: 8500,
-      },
-      {
-        id: "r24",
-        roomNumber: "803",
-        type: "Shared",
-        isAvailable: false,
-        price: 8500,
-      },
-      {
-        id: "r25",
-        roomNumber: "804",
-        type: "Shared",
-        isAvailable: true,
-        price: 8500,
-      },
-    ],
-  },
-  {
-    id: "9",
-    name: "The Moratuwa Residence",
-    nearestUniversity: "University of Moratuwa",
-    distance: 0.9,
-    distanceUnit: "km from campus",
-    price: 16500,
-    rating: 4.7,
-    roomType: "Single Room",
-    amenities: ["WiFi", "Gym", "Meals", "Security"],
-    icon: "building",
-    coordinates: { lat: 6.7955, lng: 79.902 },
-    rooms: [
-      {
-        id: "r26",
-        roomNumber: "901",
-        type: "Single",
-        isAvailable: true,
-        price: 16500,
-      },
-      {
-        id: "r27",
-        roomNumber: "902",
-        type: "Single",
-        isAvailable: false,
-        price: 16500,
-      },
-      {
-        id: "r28",
-        roomNumber: "903",
-        type: "Single",
-        isAvailable: true,
-        price: 16500,
-      },
-    ],
-  },
-  ...demoBoardingPlaces,
-];
 
 function MapViewUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
@@ -438,7 +96,6 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
   const [boardingPlaces, setBoardingPlaces] = useState<BoardingPlace[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [universityName, setUniversityName] = useState("");
   const [distance, setDistance] = useState("1 km");
   const [priceRange, setPriceRange] = useState("Any");
@@ -455,12 +112,13 @@ export default function StudentDashboard() {
     const loadListings = async () => {
       try {
         setLoading(true);
-        const data = await fetchListings();
+        const data = await fetchListings() as any[];
 
         const mapped: BoardingPlace[] = data.map((listing, index) => {
-          const roomPriceList = (listing.rooms ?? []).map((room) => room.price);
-          const minPrice = roomPriceList.length > 0 ? Math.min(...roomPriceList) : 0;
-          const firstRoomType = listing.rooms?.[0]?.type || "Shared";
+          // If the property has rooms, get the minimum room price, otherwise default to a basic price.
+          const roomPriceList = (listing.rooms ?? []).map((room: any) => room.price);
+          const minPrice = roomPriceList.length > 0 ? Math.min(...roomPriceList) : 12000;
+          const firstRoomType = listing.rooms?.[0]?.room_type || "Shared";
           const baseCoords =
             (listing.latitude != null && listing.longitude != null)
               ? { lat: listing.latitude, lng: listing.longitude }
@@ -473,7 +131,7 @@ export default function StudentDashboard() {
             distance: listing.distance_from_university ?? 0,
             distanceUnit: "km from campus",
             price: minPrice,
-            rating: listing.rating ?? 0,
+            rating: listing.rating ?? 4.5,
             roomType:
               firstRoomType === "Single"
                 ? "Single Room"
@@ -481,27 +139,26 @@ export default function StudentDashboard() {
             amenities: (listing.amenities ?? []).map((a: any) => typeof a === 'string' ? a : a.amenity_name),
             icon: (index + 1) % 2 === 0 ? "building" : "home",
             coordinates: baseCoords,
-            rooms: listing.rooms,
-            gender: index % 3 === 0 ? "Male Only" : index % 3 === 1 ? "Female Only" : "Any",
+            rooms: listing.rooms?.map((r: any) => ({
+              id: r.id.toString(),
+              roomNumber: r.room_number,
+              type: r.room_type,
+              isAvailable: r.is_available,
+              price: r.price,
+              maxSharing: r.max_sharing,
+              slotsTaken: r.slots_taken,
+              floorNumber: r.floor_number
+            })),
+            gender: listing.gender_restriction || "Any",
+            description: listing.description || "",
+            images: listing.images ? listing.images.split(",") : [],
+            priceRange: listing.price_range || "",
           };
         });
 
-        const prefixedMockPlaces = mockBoardingPlaces.map((place, idx) => ({
-          ...place,
-          id: `mock-${place.id}`,
-          gender: idx % 3 === 0 ? "Male Only" : idx % 3 === 1 ? "Female Only" : "Any",
-        }));
-
-        setBoardingPlaces([...prefixedMockPlaces, ...mapped]);
-        setLoadError(null);
+        setBoardingPlaces(mapped);
       } catch (error) {
         console.error("Failed to load database listings", error);
-        const prefixedMockPlaces = mockBoardingPlaces.map((place, idx) => ({
-          ...place,
-          id: `mock-${place.id}`,
-          gender: idx % 3 === 0 ? "Male Only" : idx % 3 === 1 ? "Female Only" : "Any",
-        }));
-        setBoardingPlaces(prefixedMockPlaces);
       } finally {
         setLoading(false);
       }
@@ -862,10 +519,21 @@ export default function StudentDashboard() {
                       <div className="flex items-center justify-between mt-3">
                         <div>
                           <p className="text-2xl font-bold text-gray-900">
-                            LKR {place.price.toLocaleString()}
-                            <span className="text-sm font-normal text-gray-600">
-                              /month
-                            </span>
+                            {place.priceRange ? (
+                              <>
+                                {place.priceRange}
+                                <span className="text-sm font-normal text-gray-600">
+                                  {" "}/month
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                LKR {place.price.toLocaleString()}
+                                <span className="text-sm font-normal text-gray-600">
+                                  /month
+                                </span>
+                              </>
+                            )}
                           </p>
                           <div className="flex gap-2 mt-2">
                             <span className="px-3 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">

@@ -103,4 +103,17 @@ export const matchesUniversitySearch = (query: string, placeNearestUniversity: s
   if (searchKey.includes(normalizedQuery) || normalizedQuery.includes(uniNameLower)) return true;
 
   return false;
+};
+
+export const UNIVERSITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  "University of Moratuwa": { lat: 6.7951, lng: 79.9008 },
+  "University of Colombo": { lat: 6.9020, lng: 79.8612 },
+  "University of Peradeniya": { lat: 7.2548, lng: 80.5987 },
+  "University of Sri Jayewardenepura": { lat: 6.8529, lng: 79.9021 },
+  "Sri Lanka Institute of Information Technology": { lat: 6.9064, lng: 79.9706 },
+  "NSBM Green University": { lat: 6.8213, lng: 80.0416 },
+  "APIIT Sri Lanka": { lat: 6.9189, lng: 79.8530 },
+  "Informatics Institute of Technology": { lat: 6.9634, lng: 79.8703 },
+  "University of Kelaniya": { lat: 6.9741, lng: 79.9161 },
+  "Open University of Sri Lanka": { lat: 6.8824, lng: 79.8825 },
 };

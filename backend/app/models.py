@@ -69,6 +69,8 @@ class BoardingPlace(Base):
     gender_restriction = Column(String, nullable=True, default="Any")
     status = Column(Enum(ListingStatus), default=ListingStatus.PENDING, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
 
     owner = relationship("Owner", back_populates="boarding_places")
     rooms = relationship("Room", back_populates="property", cascade="all, delete-orphan")
@@ -88,3 +90,47 @@ class Room(Base):
     is_available = Column(Boolean, default=True)
 
     property = relationship("BoardingPlace", back_populates="rooms")
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("boarding_places.id"), nullable=False, index=True)
+    student_id  = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    reviewer_role = Column(String, nullable=False, default="student")
+    reviewer_name = Column(String, nullable=True)
+    reviewer_email = Column(String, nullable=True)
+    booking_id  = Column(Integer, unique=True, nullable=True)
+    visit_id    = Column(Integer, unique=True, nullable=True)
+    rating      = Column(Integer, nullable=False)
+    comment     = Column(String, nullable=True)
+    is_visible  = Column(Boolean, default=True)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+    updated_at  = Column(DateTime, onupdate=datetime.utcnow)
+
+    reply = relationship("ReviewReply", back_populates="review", uselist=False, cascade="all, delete-orphan")
+    media = relationship("ReviewMedia", back_populates="review", cascade="all, delete-orphan")
+
+class ReviewReply(Base):
+    __tablename__ = "review_replies"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    review_id   = Column(Integer, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False, unique=True)
+    landlord_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    reply       = Column(String, nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    review = relationship("Review", back_populates="reply")
+
+class ReviewMedia(Base):
+    __tablename__ = "review_media"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    review_id   = Column(Integer, ForeignKey("reviews.id", ondelete="CASCADE"), nullable=False, index=True)
+    file_key    = Column(String, nullable=False)
+    public_url  = Column(String, nullable=False)
+    mime_type   = Column(String, nullable=False)
+    size_bytes  = Column(Integer, nullable=False)
+    created_at  = Column(DateTime, default=datetime.utcnow)
+
+    review = relationship("Review", back_populates="media")

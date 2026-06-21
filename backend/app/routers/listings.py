@@ -43,6 +43,8 @@ def _build_listing_response(listing: models.BoardingPlace, owner_profile: models
         gender_restriction=listing.gender_restriction,
         status=listing.status.value if listing.status else models.ListingStatus.PENDING.value,
         created_at=listing.created_at,
+        latitude=listing.latitude,
+        longitude=listing.longitude,
         rooms=[
             schemas.RoomResponse(
                 id=r.id,
@@ -72,11 +74,30 @@ def create_boarding_place(
     if owner_profile is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Owner profile not found")
 
-    if payload.number_of_floors < 1 or payload.number_of_rooms < 1:
+    num_rooms = payload.number_of_rooms if payload.number_of_rooms is not None else payload.total_rooms
+    if num_rooms is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Number of rooms must be provided",
+        )
+
+    if payload.number_of_floors < 1 or num_rooms < 1:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Number of floors and rooms must be greater than zero",
         )
+
+    # Resolve latitude/longitude coordinates
+    from ..utils import geocode_address, get_university_fallback_coords
+    lat = payload.latitude
+    lon = payload.longitude
+
+    if lat is None or lon is None:
+        # Try server-side geocoding as fallback
+        lat, lon = geocode_address(payload.address)
+        if lat is None or lon is None:
+            # Final fallback to university coords
+            lat, lon = get_university_fallback_coords(payload.nearest_university)
 
     listing = models.BoardingPlace(
         owner_id=owner_profile.id,
@@ -85,9 +106,11 @@ def create_boarding_place(
         address=payload.address,
         nearest_university=payload.nearest_university,
         number_of_floors=payload.number_of_floors,
-        number_of_rooms=payload.number_of_rooms,
+        number_of_rooms=num_rooms,
         verification_document_name=payload.verification_document_name,
         gender_restriction=payload.gender_restriction,
+        latitude=lat,
+        longitude=lon,
     )
 
     db.add(listing)

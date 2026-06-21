@@ -1,12 +1,37 @@
-import { useState } from "react";
-import { Upload, ChevronDown } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Upload, ChevronDown, MapPin, Search } from "lucide-react";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "../components/ToastProvider";
-import { universities } from "../data/universities";
+import { universities, UNIVERSITY_COORDINATES } from "../data/universities";
 import { createListing, uploadDocument } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+
+// Fix Leaflet default marker icon issue with React
+delete (L.Icon.Default.prototype as { _getIconUrl?: () => string })._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+  iconUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+});
+
+const redIcon = new L.Icon({
+  iconUrl:
+    "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+  shadowUrl:
+    "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
 
 interface PropertyFormData {
   propertyName: string;
@@ -15,7 +40,57 @@ interface PropertyFormData {
   nearestUniversity: string;
   numberOfFloors: string;
   numberOfRooms: string;
+  genderRestriction: string;
+  priceRange: string;
   verificationDocument: File | null;
+}
+
+function LocationMarker({
+  coordinates,
+  setCoordinates,
+}: {
+  coordinates: { lat: number; lng: number } | null;
+  setCoordinates: (coords: { lat: number; lng: number }) => void;
+}) {
+  const map = useMap();
+
+  useMapEvents({
+    click(e) {
+      setCoordinates({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+
+  const markerRef = useRef<any>(null);
+  const eventHandlers = useMemo(
+    () => ({
+      dragend() {
+        const marker = markerRef.current;
+        if (marker != null) {
+          const latLng = marker.getLatLng();
+          setCoordinates({ lat: latLng.lat, lng: latLng.lng });
+        }
+      },
+    }),
+    [setCoordinates]
+  );
+
+  return coordinates === null ? null : (
+    <Marker
+      draggable={true}
+      eventHandlers={eventHandlers}
+      position={[coordinates.lat, coordinates.lng]}
+      ref={markerRef}
+      icon={redIcon}
+    />
+  );
+}
+
+function MapViewUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, zoom);
+  }, [center, zoom, map]);
+  return null;
 }
 
 const ListPropertyPage = () => {
@@ -29,6 +104,8 @@ const ListPropertyPage = () => {
     nearestUniversity: "",
     numberOfFloors: "",
     numberOfRooms: "",
+    genderRestriction: "Any",
+    priceRange: "",
     verificationDocument: null,
   });
 
@@ -41,6 +118,59 @@ const ListPropertyPage = () => {
     (uni) => uni.name === selectedUniversityName,
   );
   const campusOptions = selectedUniversity?.campuses ?? [];
+
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([7.8731, 80.7718]);
+  const [searchingLocation, setSearchingLocation] = useState(false);
+
+  // Center map on university when it changes
+  useEffect(() => {
+    if (selectedUniversityName) {
+      const foundKey = Object.keys(UNIVERSITY_COORDINATES).find(key =>
+        selectedUniversityName.toLowerCase().includes(key.toLowerCase())
+      );
+      if (foundKey) {
+        const coords = UNIVERSITY_COORDINATES[foundKey];
+        setMapCenter([coords.lat, coords.lng]);
+        setCoordinates({ lat: coords.lat, lng: coords.lng });
+      }
+    }
+  }, [selectedUniversityName]);
+
+  const handleLocateAddress = async () => {
+    if (!formData.address) {
+      addToast("Please enter a full address first.", "warning");
+      return;
+    }
+    setSearchingLocation(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          formData.address
+        )}&limit=1`,
+        {
+          headers: {
+            "User-Agent": "UniBoard/1.0",
+          },
+        }
+      );
+      const data = await response.json();
+      if (data && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+        setCoordinates({ lat, lng: lon });
+        setMapCenter([lat, lon]);
+        addToast("Location found and updated on the map!", "success");
+      } else {
+        addToast("Could not resolve address. Try placing a marker manually on the map.", "warning");
+      }
+    } catch (err) {
+      console.error("Geocoding failed", err);
+      addToast("Geocoding service unavailable. You can click on the map to manually set the location.", "warning");
+    } finally {
+      setSearchingLocation(false);
+    }
+  };
 
   const handleInputChange = (
     e: React.ChangeEvent<
@@ -81,6 +211,7 @@ const ListPropertyPage = () => {
       !formData.nearestUniversity ||
       !formData.numberOfFloors ||
       !formData.numberOfRooms ||
+      !formData.priceRange ||
       !formData.verificationDocument
     ) {
       addToast("Please fill in all required fields", "warning");
@@ -111,7 +242,12 @@ const ListPropertyPage = () => {
       address: formData.address,
       nearest_university: formData.nearestUniversity,
       number_of_floors: Number(formData.numberOfFloors),
+      number_of_rooms: Number(formData.numberOfRooms),
       total_rooms: Number(formData.numberOfRooms),
+      gender_restriction: formData.genderRestriction,
+      price_range: formData.priceRange,
+      latitude: coordinates ? coordinates.lat : null,
+      longitude: coordinates ? coordinates.lng : null,
     };
 
     setSubmitting(true);
@@ -136,6 +272,8 @@ const ListPropertyPage = () => {
           nearestUniversity: "",
           numberOfFloors: "",
           numberOfRooms: "",
+          genderRestriction: "Any",
+          priceRange: "",
           verificationDocument: null,
         });
         setFileName("");
@@ -202,14 +340,55 @@ const ListPropertyPage = () => {
               <label className="block text-sm font-semibold text-gray-900 mb-2">
                 Full Address <span className="text-red-500">*</span>
               </label>
-              <textarea
-                name="address"
-                placeholder="e.g., 123 Main Street, Colombo 3, Sri Lanka"
-                value={formData.address}
-                onChange={handleInputChange}
-                rows={3}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              />
+              <div className="flex gap-2">
+                <textarea
+                  name="address"
+                  placeholder="e.g., 123 Main Street, Colombo 3, Sri Lanka"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                />
+                <button
+                  type="button"
+                  onClick={handleLocateAddress}
+                  disabled={searchingLocation}
+                  className="px-4 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 rounded-lg transition text-sm font-semibold flex flex-col items-center justify-center gap-1 min-w-[100px]"
+                >
+                  <Search className="w-5 h-5 text-gray-500" />
+                  {searchingLocation ? "Locating..." : "Locate on Map"}
+                </button>
+              </div>
+            </div>
+
+            {/* Interactive Map Picker */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-1">
+                Property Location on Map <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Click on the map or drag the pin to pinpoint the exact location of your property.
+              </p>
+              <div style={{ height: "300px", width: "100%" }} className="rounded-lg overflow-hidden border border-gray-300 relative z-0">
+                <MapContainer
+                  center={mapCenter}
+                  zoom={coordinates ? 15 : 8}
+                  style={{ height: "100%", width: "100%" }}
+                  scrollWheelZoom={true}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <MapViewUpdater center={mapCenter} zoom={coordinates ? 15 : 8} />
+                  <LocationMarker coordinates={coordinates} setCoordinates={setCoordinates} />
+                </MapContainer>
+              </div>
+              {coordinates && (
+                <p className="text-xs text-gray-500 mt-2 bg-gray-50 p-2 rounded border border-gray-200">
+                  Selected coordinates: <span className="font-semibold">{coordinates.lat.toFixed(6)}, {coordinates.lng.toFixed(6)}</span>
+                </p>
+              )}
             </div>
 
             {/* Nearest University */}
@@ -313,6 +492,41 @@ const ListPropertyPage = () => {
                 value={formData.numberOfRooms}
                 onChange={handleInputChange}
                 min="1"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              />
+            </div>
+
+            {/* Gender restriction */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Gender Preference / Restriction <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  name="genderRestriction"
+                  value={formData.genderRestriction}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition appearance-none bg-white"
+                >
+                  <option value="Any">Any (Mixed / Unisex)</option>
+                  <option value="Male Only">Male Only</option>
+                  <option value="Female Only">Female Only</option>
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none w-5 h-5" />
+              </div>
+            </div>
+
+            {/* Price Range */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-2">
+                Monthly Price Range (LKR) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="priceRange"
+                placeholder="e.g., LKR 10,000 - 15,000"
+                value={formData.priceRange}
+                onChange={handleInputChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               />
             </div>

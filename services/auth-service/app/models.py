@@ -28,6 +28,12 @@ class Student(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     full_name = Column(String)
     university = Column(String)
+    phone_number = Column(String, nullable=True)
+    student_id = Column(String, nullable=True)
+    address = Column(String, nullable=True)
+    year_of_study = Column(String, nullable=True)
+    major = Column(String, nullable=True)
+    profile_image_url = Column(String, nullable=True)
 
     user = relationship("User", back_populates="student_profile")
 
@@ -39,5 +45,9 @@ class Owner(Base):
     full_name = Column(String)
     nic_number = Column(String)
     contact_number = Column(String)
+    office_address = Column(String, nullable=True)
+    preferred_contact_time = Column(String, nullable=True)
+    property_business_name = Column(String, nullable=True)
+    profile_image_url = Column(String, nullable=True)
 
     user = relationship("User", back_populates="owner_profile")

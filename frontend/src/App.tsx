@@ -11,6 +11,7 @@ import BoardingDetails from "./pages/BoardingDetails";
 import StudentProfile from "./pages/StudentProfile";
 import OwnerProfile from "./pages/OwnerProfile";
 import ListPropertyPage from "./pages/ListPropertyPage";
+import AdminDashboard from "./pages/AdminDashboard";
 import { ToastProvider } from "./components/ToastProvider";
 
 function App() {
@@ -66,6 +67,15 @@ function App() {
             element={
               <ProtectedRoute requiredRole="owner">
                 <OwnerProfile />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin-dashboard"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AdminDashboard />
               </ProtectedRoute>
             }
           />

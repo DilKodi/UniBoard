@@ -22,6 +22,8 @@ def _build_listing_response(listing: models.BoardingPlace, owner_profile: models
         gender_restriction=listing.gender_restriction,
         status=listing.status.value if listing.status else models.ListingStatus.PENDING.value,
         created_at=listing.created_at,
+        latitude=listing.latitude,
+        longitude=listing.longitude,
     )
 
 
