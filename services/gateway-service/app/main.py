@@ -14,6 +14,10 @@ def _origin_list(default: str) -> list[str]:
 
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8001")
 BOARDING_SERVICE_URL = os.getenv("BOARDING_SERVICE_URL", "http://boarding-service:8003")
+BOOKING_SERVICE_URL = os.getenv("BOOKING_SERVICE_URL", "http://booking-service:8004")
+REVIEW_SERVICE_URL = os.getenv("REVIEW_SERVICE_URL", "http://review-service:8005")
+NOTIFICATION_SERVICE_URL = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification-service:8006")
+
 
 
 app = FastAPI(title=os.getenv("GATEWAY_NAME", "UniBoard API Gateway"), version="1.0.0")
@@ -67,6 +71,67 @@ async def _proxy(request: Request, target_base_url: str, upstream_path: str) -> 
         content=upstream_response.content,
         status_code=upstream_response.status_code,
         headers=headers,
+    )
+
+
+async def _proxy_with_auth(request: Request, target_base_url: str, upstream_path: str) -> Response:
+    async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+        me_response = await client.get(
+            f"{AUTH_SERVICE_URL.rstrip('/')}/users/me",
+            headers=_filtered_headers(request),
+        )
+        if me_response.status_code != 200:
+            return Response(
+                content=me_response.content,
+                status_code=me_response.status_code,
+                headers={"content-type": me_response.headers.get("content-type", "application/json")}
+            )
+        user = me_response.json()
+        user_id = user.get("id")
+        user_role = user.get("role", "")
+        user_email = user.get("email", "")
+
+        user_name = ""
+        if user_role == "student" and user.get("student_profile"):
+            user_name = user["student_profile"].get("full_name", "")
+        elif user_role == "owner" and user.get("owner_profile"):
+            user_name = user["owner_profile"].get("full_name", "")
+
+    upstream_url = f"{target_base_url.rstrip('/')}{upstream_path}"
+    if request.url.query:
+        upstream_url = f"{upstream_url}?{request.url.query}"
+
+    body = await request.body()
+    headers = _filtered_headers(request)
+    headers["X-User-Id"] = str(user_id)
+    headers["X-User-Role"] = str(user_role)
+    headers["X-User-Name"] = str(user_name)
+    headers["X-User-Email"] = str(user_email)
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30.0) as client:
+            upstream_response = await client.request(
+                request.method,
+                upstream_url,
+                content=body if body else None,
+                headers=headers,
+            )
+    except httpx.RequestError:
+        service_name = upstream_path.strip("/").split("/")[0] or "upstream"
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": f"{service_name} service is unavailable"},
+        )
+
+    resp_headers = {}
+    content_type = upstream_response.headers.get("content-type")
+    if content_type:
+        resp_headers["content-type"] = content_type
+
+    return Response(
+        content=upstream_response.content,
+        status_code=upstream_response.status_code,
+        headers=resp_headers,
     )
 
 
@@ -198,6 +263,20 @@ async def listing_detail(request: Request, listing_id: int):
     return await _proxy(request, BOARDING_SERVICE_URL, f"/boardings/{listing_id}")
 
 
+@app.api_route("/listings/{listing_id}/images", methods=["GET", "POST", "OPTIONS"])
+async def listing_images(request: Request, listing_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, BOARDING_SERVICE_URL, f"/boardings/{listing_id}/images")
+
+
+@app.api_route("/listings/{listing_id}/images/{image_id}", methods=["DELETE", "OPTIONS"])
+async def delete_listing_image(request: Request, listing_id: int, image_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, BOARDING_SERVICE_URL, f"/boardings/{listing_id}/images/{image_id}")
+
+
 @app.api_route("/admin/listings/pending", methods=["GET", "OPTIONS"])
 async def admin_pending_listings(request: Request):
     if request.method == "OPTIONS":
@@ -232,6 +311,135 @@ async def admin_reject_listing(request: Request, listing_id: int):
         return admin_check
 
     return await _proxy(request, BOARDING_SERVICE_URL, f"/boardings/admin/listings/{listing_id}/reject")
+
+
+@app.api_route("/admin/listings/{listing_id}/reset", methods=["POST", "OPTIONS"])
+async def admin_reset_listing(request: Request, listing_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    admin_check = await _require_admin(request)
+    if admin_check is not None:
+        return admin_check
+
+    return await _proxy(request, BOARDING_SERVICE_URL, f"/boardings/admin/listings/{listing_id}/reset")
+
+
+@app.api_route("/users/me/student", methods=["PUT", "OPTIONS"])
+async def update_student_profile_route(request: Request):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, AUTH_SERVICE_URL, "/users/me/student")
+
+
+@app.api_route("/users/me/owner", methods=["PUT", "OPTIONS"])
+async def update_owner_profile_route(request: Request):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, AUTH_SERVICE_URL, "/users/me/owner")
+
+
+@app.api_route("/users/profile/upload", methods=["POST", "OPTIONS"])
+async def upload_profile_picture_route(request: Request):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, BOARDING_SERVICE_URL, "/boardings/profile/upload")
+
+
+
+@app.api_route("/rooms", methods=["GET", "POST", "OPTIONS"])
+async def rooms_root_route(request: Request):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, BOARDING_SERVICE_URL, "/rooms")
+
+
+@app.api_route("/rooms/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+async def rooms_sub_route(request: Request, path: str):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, BOARDING_SERVICE_URL, f"/rooms/{path}")
+
+
+@app.api_route("/bookings/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+async def bookings_route(request: Request, path: str):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, BOOKING_SERVICE_URL, f"/bookings/{path}")
+
+
+@app.api_route("/reviews/property/{property_id}/summary", methods=["GET", "OPTIONS"])
+async def property_summary_route(request: Request, property_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, REVIEW_SERVICE_URL, f"/reviews/property/{property_id}/summary")
+
+
+@app.api_route("/reviews/property/{property_id}", methods=["GET", "OPTIONS"])
+async def property_reviews_route(request: Request, property_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy(request, REVIEW_SERVICE_URL, f"/reviews/property/{property_id}")
+
+
+@app.api_route("/reviews/{review_id}/visibility", methods=["PATCH", "OPTIONS"])
+async def toggle_visibility_route(request: Request, review_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    admin_check = await _require_admin(request)
+    if admin_check is not None:
+        return admin_check
+    return await _proxy(request, REVIEW_SERVICE_URL, f"/reviews/{review_id}/visibility")
+
+
+@app.api_route("/reviews/{review_id}/reply", methods=["POST", "OPTIONS"])
+async def reply_to_review_route(request: Request, review_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy_with_auth(request, REVIEW_SERVICE_URL, f"/reviews/{review_id}/reply")
+
+
+@app.api_route("/reviews/{review_id}/media/{media_id}", methods=["DELETE", "OPTIONS"])
+async def delete_review_media_route(request: Request, review_id: int, media_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy_with_auth(request, REVIEW_SERVICE_URL, f"/reviews/{review_id}/media/{media_id}")
+
+
+@app.api_route("/reviews/{review_id}/media", methods=["POST", "OPTIONS"])
+async def upload_review_media_route(request: Request, review_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy_with_auth(request, REVIEW_SERVICE_URL, f"/reviews/{review_id}/media")
+
+
+@app.api_route("/reviews/{review_id}", methods=["PATCH", "DELETE", "OPTIONS"])
+async def manage_review_route(request: Request, review_id: int):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy_with_auth(request, REVIEW_SERVICE_URL, f"/reviews/{review_id}")
+
+
+@app.api_route("/reviews", methods=["POST", "OPTIONS"])
+async def create_review_route(request: Request):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy_with_auth(request, REVIEW_SERVICE_URL, "/reviews/")
+
+
+@app.api_route("/notifications", methods=["GET", "OPTIONS"])
+async def get_notifications_route(request: Request):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy_with_auth(request, NOTIFICATION_SERVICE_URL, "/notifications")
+
+
+@app.api_route("/notifications/{path:path}", methods=["PATCH", "DELETE", "OPTIONS"])
+async def modify_notification_route(request: Request, path: str):
+    if request.method == "OPTIONS":
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return await _proxy_with_auth(request, NOTIFICATION_SERVICE_URL, f"/notifications/{path}")
+
 
 @app.get("/routes")
 def list_routes():
