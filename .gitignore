@@ -225,3 +225,6 @@ postgres_data/
 # OS Metadata
 .DS_Store
 Thumbs.db
+
+# Microservices environment files
+services/*/.env
